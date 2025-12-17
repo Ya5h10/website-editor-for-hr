@@ -70,6 +70,7 @@ export default function ValuesEditor({ blockIndex }: ValuesEditorProps) {
                     control={control}
                     render={({ field: imageField }) => (
                       <ImageUpload
+                        label="Image"
                         value={imageField.value || ''}
                         onChange={(url) => imageField.onChange(url)}
                       />
