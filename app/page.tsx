@@ -6,7 +6,7 @@ export default function Home() {
     <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gray-50">
       <div className="w-full max-w-4xl">
         <h1 className="text-5xl md:text-6xl font-bold text-gray-900 text-center mb-12">
-          Welcome to Orbit
+          Welcome to TalentHiring.ai
         </h1>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
