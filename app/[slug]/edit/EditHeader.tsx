@@ -39,7 +39,7 @@ export default function EditHeader({ slug }: EditHeaderProps) {
   };
 
   const handlePreviewClick = () => {
-    window.open(`/${slug}?preview=true`, '_blank');
+    window.open(`/${slug}/careers?preview=true`, '_blank');
   };
 
   const handlePublishClick = async () => {
