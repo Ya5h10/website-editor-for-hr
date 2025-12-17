@@ -82,7 +82,9 @@ export default function EditorForm({
 }: EditorFormProps) {
   const [activeTab, setActiveTab] = useState<'content' | 'jobs'>('content');
   const [isSaving, setIsSaving] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [internalSaveStatus, setInternalSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [internalPublishStatus, setInternalPublishStatus] = useState<'idle' | 'publishing' | 'published'>('idle');
   const lastInitialDataRef = useRef<string>('');
   
   // Use external status if provided, otherwise use internal
@@ -267,10 +269,75 @@ export default function EditorForm({
     }
   }, [getValues, supabase, companyId, onSave]);
 
-  // Expose handleSave to parent via window event or callback
+  const handlePublish = useCallback(async () => {
+    if (!supabase) {
+      alert('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file.');
+      return;
+    }
+
+    setIsPublishing(true);
+    setInternalPublishStatus('publishing');
+    
+    // Dispatch event for header to listen to
+    window.dispatchEvent(new CustomEvent('editorForm:publishStatus', { detail: 'publishing' }));
+
+    try {
+      const formData = getValues();
+
+      // Normalize blocks before publishing (same as save)
+      const normalizedBlocks = formData.content_blocks.map((block) => {
+        if (block.type === 'values_grid') {
+          return {
+            ...block,
+            items: (block.items || []).map((item) => ({
+              title: (item as any).title ?? '',
+              text: (item as any).text ?? '',
+              image_url: (item as any).image_url ?? '',
+            })),
+          } as any;
+        }
+        return block as any;
+      });
+      
+      // Copy config to published_config
+      const { error } = await supabase
+        .from('page_configs')
+        .update({
+          published_config: normalizedBlocks,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('company_id', companyId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Success feedback
+      setInternalPublishStatus('published');
+      window.dispatchEvent(new CustomEvent('editorForm:publishStatus', { detail: 'published' }));
+      
+      // Show success message
+      alert('Site Published Successfully!');
+      
+      setTimeout(() => {
+        setInternalPublishStatus('idle');
+        window.dispatchEvent(new CustomEvent('editorForm:publishStatus', { detail: 'idle' }));
+      }, 2000);
+    } catch (error) {
+      console.error('Publish error:', error);
+      alert(`Failed to publish: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setInternalPublishStatus('idle');
+      window.dispatchEvent(new CustomEvent('editorForm:publishStatus', { detail: 'idle' }));
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [getValues, supabase, companyId]);
+
+  // Expose handleSave and handlePublish to parent via window event or callback
   useEffect(() => {
-    // Store handler globally for header to access
+    // Store handlers globally for header to access
     (window as any).__editorFormSaveHandler = handleSave;
+    (window as any).__editorFormPublishHandler = handlePublish;
     
     if (onSaveHandlerReady) {
       onSaveHandlerReady(handleSave);
@@ -278,8 +345,9 @@ export default function EditorForm({
     
     return () => {
       delete (window as any).__editorFormSaveHandler;
+      delete (window as any).__editorFormPublishHandler;
     };
-  }, [handleSave, onSaveHandlerReady]);
+  }, [handleSave, handlePublish, onSaveHandlerReady]);
 
   return (
     <div className="space-y-6">

@@ -8,6 +8,9 @@ interface PublicPageProps {
   params: Promise<{
     slug: string;
   }>;
+  searchParams: Promise<{
+    preview?: string;
+  }>;
 }
 
 async function getCompanyData(slug: string) {
@@ -36,7 +39,7 @@ async function getCompanyData(slug: string) {
   const [pageConfigResult, jobsResult] = await Promise.all([
     supabase
       .from('page_configs')
-      .select('config, brand_color, logo_url, hero_background_url')
+      .select('config, published_config, brand_color, logo_url, hero_background_url')
       .eq('company_id', company.id)
       .single(),
     supabase
@@ -53,8 +56,11 @@ async function getCompanyData(slug: string) {
   };
 }
 
-export default async function PublicPage({ params }: PublicPageProps) {
+export default async function PublicPage({ params, searchParams }: PublicPageProps) {
   const { slug } = await params;
+  const { preview } = await searchParams;
+  const isPreview = preview === 'true';
+  
   const companyData = await getCompanyData(slug);
 
   if (!companyData) {
@@ -65,19 +71,29 @@ export default async function PublicPage({ params }: PublicPageProps) {
   const pageConfig = companyData.page_configs;
   const jobs = (companyData.jobs || []) as Job[];
   
+  // Determine which config to use: preview mode uses config (draft), otherwise use published_config
+  let configToUse: any = null;
+  if (isPreview) {
+    // Preview mode: use draft config
+    configToUse = pageConfig?.config;
+  } else {
+    // Live mode: use published_config, fallback to config if published_config is empty/null
+    configToUse = pageConfig?.published_config || pageConfig?.config;
+  }
+  
   // Parse config if it's a string, otherwise use directly
   // Keep hero blocks (they're optional content sections, separate from global header)
   let blocks: Block[] = [];
-  if (pageConfig?.config) {
-    if (typeof pageConfig.config === 'string') {
+  if (configToUse) {
+    if (typeof configToUse === 'string') {
       try {
-        blocks = JSON.parse(pageConfig.config);
+        blocks = JSON.parse(configToUse);
       } catch (e) {
         console.error('Error parsing config:', e);
         blocks = [];
       }
-    } else if (Array.isArray(pageConfig.config)) {
-      blocks = pageConfig.config;
+    } else if (Array.isArray(configToUse)) {
+      blocks = configToUse;
     }
   }
   
@@ -87,6 +103,11 @@ export default async function PublicPage({ params }: PublicPageProps) {
 
   return (
     <>
+      {isPreview && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-yellow-500 text-yellow-900 px-4 py-2 text-center text-sm font-semibold shadow-lg">
+          Preview Mode
+        </div>
+      )}
       <PageHeader 
         logo={logoUrl} 
         brandColor={brandColor} 
