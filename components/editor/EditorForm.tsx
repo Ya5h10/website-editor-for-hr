@@ -9,6 +9,7 @@ import { editorFormSchema, EditorFormData, BlockFormData } from './schema';
 import { Block } from '@/types/schema';
 import TextInput from './inputs/TextInput';
 import ImageUpload from './inputs/ImageUpload';
+import ColorPicker from './inputs/ColorPicker';
 import ValuesEditor from './blocks/ValuesEditor';
 import HeroEditor from './blocks/HeroEditor';
 import FeatureEditor from './blocks/FeatureEditor';
@@ -392,24 +393,13 @@ export default function EditorForm({
               <div className="bg-white/40 border border-white/60 shadow-sm backdrop-blur-md rounded-xl p-6 mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Page Design & Header</h2>
                 <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">
-                      Brand Color
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="color"
-                        {...register('brand_color')}
-                        className="w-16 h-10 rounded-lg border border-gray-200 cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        {...register('brand_color')}
-                        placeholder="#3b82f6"
-                        className="flex-1 bg-white/50 border border-gray-200 focus:border-gray-400 focus:ring-0 rounded-lg p-3 transition-all backdrop-blur-sm placeholder:text-gray-400"
-                      />
-                    </div>
-                  </div>
+                  <ColorPicker
+                    label="Brand Color"
+                    value={watch('brand_color') || '#3b82f6'}
+                    onChange={(color) => {
+                      setValue('brand_color', color, { shouldDirty: true });
+                    }}
+                  />
                   <div>
                     <input
                       type="hidden"
