@@ -1,6 +1,8 @@
 import ProtectedEditPage from './ProtectedEditPage';
 import { Block } from '@/types/schema';
 
+export const runtime = 'edge';
+
 interface EditPageProps {
   params: Promise<{
     slug: string;

@@ -3,6 +3,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, Building2 } from 'lucide-react';
 
+export const runtime = 'edge';
+
 interface Company {
   id: string;
   name: string;

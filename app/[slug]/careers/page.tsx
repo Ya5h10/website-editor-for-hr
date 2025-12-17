@@ -4,6 +4,8 @@ import PageRenderer from '@/components/builder/PageRenderer';
 import PageHeader from '@/components/builder/PageHeader';
 import { Block, Job } from '@/types/schema';
 
+export const runtime = 'edge';
+
 interface PublicPageProps {
   params: Promise<{
     slug: string;

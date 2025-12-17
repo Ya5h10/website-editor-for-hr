@@ -3,6 +3,8 @@ import PageRenderer from '@/components/builder/PageRenderer';
 import { Block } from '@/types/schema';
 import { ArrowLeft } from 'lucide-react';
 
+export const runtime = 'edge';
+
 // TODO: Replace with actual Supabase fetch
 // This is dummy data for now
 const getDraftConfig = async (slug: string): Promise<{
