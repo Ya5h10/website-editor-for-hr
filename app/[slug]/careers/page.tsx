@@ -73,29 +73,30 @@ export default async function PublicPage({ params, searchParams }: PublicPagePro
   const pageConfig = companyData.page_configs;
   const jobs = (companyData.jobs || []) as Job[];
   
-  // Determine which config to use: preview mode uses config (draft), otherwise use published_config
-  let configToUse: any = null;
-  if (isPreview) {
-    // Preview mode: use draft config
-    configToUse = pageConfig?.config;
-  } else {
-    // Live mode: use published_config, fallback to config if published_config is empty/null
-    configToUse = pageConfig?.published_config || pageConfig?.config;
-  }
+  // Check if we are in Preview Mode
+  // LOGIC:
+  // 1. If Preview Mode -> Use Draft ('config')
+  // 2. If Normal Mode -> Use Live ('published_config')
+  // 3. Fallback -> Empty array (don't show draft to public if not published)
+  const contentBlocks = isPreview 
+    ? pageConfig?.config 
+    : (pageConfig?.published_config || []);
+
+  // Debug log (Server-side only)
+  console.log(`Rendering mode: ${isPreview ? 'PREVIEW (Draft)' : 'LIVE (Published)'}`);
   
   // Parse config if it's a string, otherwise use directly
-  // Keep hero blocks (they're optional content sections, separate from global header)
   let blocks: Block[] = [];
-  if (configToUse) {
-    if (typeof configToUse === 'string') {
+  if (contentBlocks) {
+    if (typeof contentBlocks === 'string') {
       try {
-        blocks = JSON.parse(configToUse);
+        blocks = JSON.parse(contentBlocks);
       } catch (e) {
         console.error('Error parsing config:', e);
         blocks = [];
       }
-    } else if (Array.isArray(configToUse)) {
-      blocks = configToUse;
+    } else if (Array.isArray(contentBlocks)) {
+      blocks = contentBlocks;
     }
   }
   

@@ -283,28 +283,35 @@ export default function EditorForm({
     window.dispatchEvent(new CustomEvent('editorForm:publishStatus', { detail: 'publishing' }));
 
     try {
-      const formData = getValues();
+      // First, fetch the current config from the database to ensure we're publishing the saved draft
+      const { data: pageConfig, error: fetchError } = await supabase
+        .from('page_configs')
+        .select('config')
+        .eq('company_id', companyId)
+        .single();
 
-      // Normalize blocks before publishing (same as save)
-      const normalizedBlocks = formData.content_blocks.map((block) => {
-        if (block.type === 'values_grid') {
-          return {
-            ...block,
-            items: (block.items || []).map((item) => ({
-              title: (item as any).title ?? '',
-              text: (item as any).text ?? '',
-              image_url: (item as any).image_url ?? '',
-            })),
-          } as any;
-        }
-        return block as any;
-      });
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      // Get the current config (draft) from the database
+      let configToPublish = pageConfig?.config;
       
-      // Copy config to published_config
+      // Parse config if it's a string, otherwise use directly
+      if (typeof configToPublish === 'string') {
+        try {
+          configToPublish = JSON.parse(configToPublish);
+        } catch (e) {
+          console.error('Error parsing config:', e);
+          configToPublish = [];
+        }
+      }
+      
+      // Copy config to published_config (SQL: UPDATE page_configs SET published_config = config, updated_at = NOW() WHERE company_id = ...)
       const { error } = await supabase
         .from('page_configs')
         .update({
-          published_config: normalizedBlocks,
+          published_config: configToPublish,
           updated_at: new Date().toISOString(),
         })
         .eq('company_id', companyId);
@@ -332,7 +339,7 @@ export default function EditorForm({
     } finally {
       setIsPublishing(false);
     }
-  }, [getValues, supabase, companyId]);
+  }, [supabase, companyId]);
 
   // Expose handleSave and handlePublish to parent via window event or callback
   useEffect(() => {
