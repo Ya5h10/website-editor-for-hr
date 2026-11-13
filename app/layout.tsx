@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Assignment App",
-  description: "Next.js application",
+  title: "Framer — Website Editor",
+  description: "Framer website editor UI",
 };
 
 export default function RootLayout({
@@ -16,7 +16,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-gray-50 text-gray-900`}>{children}</body>
+      <body className={`${inter.className} bg-black text-white antialiased`}>
+        {children}
+      </body>
     </html>
   );
 }
