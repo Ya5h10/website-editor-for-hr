@@ -6,6 +6,7 @@ import LeftSidebar from "./LeftSidebar";
 import RightSidebar from "./RightSidebar";
 import Canvas from "./Canvas";
 import CmsView from "./CmsView";
+import CodeExportPanel from "./CodeExportPanel";
 import {
   CanvasElement,
   EditorMode,
@@ -118,7 +119,11 @@ export default function FramerEditorShell({
         mode={mode}
         onModeChange={setMode}
         onPreview={onPreview}
-        onPublish={onPublish}
+        onPublish={() => {
+          // Prefer exporting React from the canvas; fall through to host publish if provided.
+          setMode("code");
+          onPublish?.();
+        }}
         publishLabel={publishLabel}
         publishDisabled={publishDisabled}
         onInsert={(kind) => handleInsert(kind)}
@@ -128,6 +133,12 @@ export default function FramerEditorShell({
 
       {mode === "cms" ? (
         <CmsView onBackToCanvas={() => setMode("canvas")} />
+      ) : mode === "code" ? (
+        <CodeExportPanel
+          elements={elements}
+          pageName={selectedPageId === "home" ? "Home" : selectedPageId}
+          onBackToCanvas={() => setMode("canvas")}
+        />
       ) : (
         <div className="flex flex-1 min-h-0">
           <LeftSidebar

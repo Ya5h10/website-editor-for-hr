@@ -1,4 +1,4 @@
-export type EditorMode = "canvas" | "cms";
+export type EditorMode = "canvas" | "cms" | "code";
 
 export type InsertKind =
   | "frame"

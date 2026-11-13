@@ -65,7 +65,9 @@ export default function TopToolbar({
             type="button"
             onClick={() => setModeMenuOpen((v) => !v)}
           >
-            <span>{mode === "cms" ? "CMS" : "Canvas"}</span>
+            <span>
+              {mode === "cms" ? "CMS" : mode === "code" ? "Code" : "Canvas"}
+            </span>
             <IconChevronDown size={14} className="opacity-60" />
           </button>
           {modeMenuOpen && (
@@ -76,7 +78,7 @@ export default function TopToolbar({
                 aria-label="Close mode menu"
                 onClick={() => setModeMenuOpen(false)}
               />
-              <div className="absolute left-0 top-full mt-1 z-50 w-40 rounded-lg border border-[#2a2a2a] bg-[#141414] p-1 shadow-xl">
+              <div className="absolute left-0 top-full mt-1 z-50 w-44 rounded-lg border border-[#2a2a2a] bg-[#141414] p-1 shadow-xl">
                 <button
                   type="button"
                   className="w-full text-left h-8 px-2 rounded-md text-[13px] hover:bg-[#222]"
@@ -96,6 +98,16 @@ export default function TopToolbar({
                   }}
                 >
                   CMS
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left h-8 px-2 rounded-md text-[13px] hover:bg-[#222]"
+                  onClick={() => {
+                    onModeChange("code");
+                    setModeMenuOpen(false);
+                  }}
+                >
+                  Code (React)
                 </button>
               </div>
             </>
@@ -200,6 +212,15 @@ export default function TopToolbar({
 
         <button className="framer-btn-outline h-7 px-2.5" type="button">
           Invite
+        </button>
+
+        <button
+          className="framer-btn-outline h-7 px-2.5"
+          type="button"
+          title="Export React JSX from the canvas"
+          onClick={() => onModeChange("code")}
+        >
+          Export React
         </button>
 
         <button
