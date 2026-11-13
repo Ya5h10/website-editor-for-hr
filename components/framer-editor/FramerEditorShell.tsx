@@ -1,25 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import TopToolbar from "./TopToolbar";
 import LeftSidebar from "./LeftSidebar";
 import RightSidebar from "./RightSidebar";
 import Canvas from "./Canvas";
-
-const LAYER_LABELS: Record<string, string> = {
-  headline: "Headline",
-  subcopy: "Subcopy",
-  cta: "CTA Stack",
-  nav: "Navigation",
-  ticker: "Hero Media",
-  features: "Features",
-  "6": "Headline",
-  "7": "Subcopy",
-  "8": "CTA Stack",
-  "2": "Navigation",
-  "9": "Hero Media",
-  "10": "Features",
-};
+import CmsView from "./CmsView";
+import {
+  CanvasElement,
+  EditorMode,
+  ElementStyle,
+  InsertKind,
+  createElement,
+  createInitialElements,
+} from "./types";
 
 interface FramerEditorShellProps {
   projectName?: string;
@@ -38,61 +32,154 @@ export default function FramerEditorShell({
   publishLabel,
   publishDisabled,
 }: FramerEditorShellProps) {
+  const [mode, setMode] = useState<EditorMode>("canvas");
   const [selectedPageId, setSelectedPageId] = useState("home");
-  const [selectedId, setSelectedId] = useState("headline");
-
-  const selectedLabel = useMemo(
-    () => LAYER_LABELS[selectedId] || "Headline",
-    [selectedId]
+  const [elements, setElements] = useState<CanvasElement[]>(() =>
+    createInitialElements()
   );
+  const [selectedId, setSelectedId] = useState<string | null>("headline");
+  const [past, setPast] = useState<CanvasElement[][]>([]);
+  const [future, setFuture] = useState<CanvasElement[][]>([]);
+
+  const selected = useMemo(
+    () => elements.find((e) => e.id === selectedId) || null,
+    [elements, selectedId]
+  );
+
+  const commit = useCallback(
+    (next: CanvasElement[] | ((prev: CanvasElement[]) => CanvasElement[])) => {
+      setElements((prev) => {
+        const resolved = typeof next === "function" ? next(prev) : next;
+        setPast((p) => [...p.slice(-29), prev]);
+        setFuture([]);
+        return resolved;
+      });
+    },
+    []
+  );
+
+  const updateElement = useCallback(
+    (id: string, patch: Partial<CanvasElement>) => {
+      commit((prev) =>
+        prev.map((el) => (el.id === id ? { ...el, ...patch } : el))
+      );
+    },
+    [commit]
+  );
+
+  const handleInsert = useCallback(
+    (kind: InsertKind, x = 120, y = 140) => {
+      const el = createElement(kind, {
+        x,
+        y,
+      });
+      commit((prev) => [...prev, el]);
+      setSelectedId(el.id);
+      setMode("canvas");
+    },
+    [commit]
+  );
+
+  const handleMove = useCallback((id: string, x: number, y: number) => {
+    setElements((prev) =>
+      prev.map((el) => (el.id === id ? { ...el, x, y } : el))
+    );
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    setPast((p) => {
+      if (!p.length) return p;
+      const prev = p[p.length - 1];
+      setElements((current) => {
+        setFuture((f) => [current, ...f]);
+        return prev;
+      });
+      return p.slice(0, -1);
+    });
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    setFuture((f) => {
+      if (!f.length) return f;
+      const [next, ...rest] = f;
+      setElements((current) => {
+        setPast((p) => [...p, current]);
+        return next;
+      });
+      return rest;
+    });
+  }, []);
 
   return (
     <div className="framer-editor fixed inset-0 flex flex-col overflow-hidden">
       <TopToolbar
         projectName={projectName}
         branchName={branchName}
+        mode={mode}
+        onModeChange={setMode}
         onPreview={onPreview}
         onPublish={onPublish}
         publishLabel={publishLabel}
         publishDisabled={publishDisabled}
+        onInsert={(kind) => handleInsert(kind)}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
 
-      <div className="flex flex-1 min-h-0">
-        <LeftSidebar
-          selectedPageId={selectedPageId}
-          onSelectPage={setSelectedPageId}
-          selectedLayerId={
-            selectedId === "headline"
-              ? "6"
-              : selectedId === "subcopy"
-              ? "7"
-              : selectedId === "cta"
-              ? "8"
-              : selectedId === "nav"
-              ? "2"
-              : selectedId === "ticker"
-              ? "9"
-              : selectedId === "features"
-              ? "10"
-              : "6"
-          }
-          onSelectLayer={(id) => {
-            const map: Record<string, string> = {
-              "2": "nav",
-              "6": "headline",
-              "7": "subcopy",
-              "8": "cta",
-              "9": "ticker",
-              "10": "features",
-            };
-            setSelectedId(map[id] || "headline");
-          }}
-        />
+      {mode === "cms" ? (
+        <CmsView onBackToCanvas={() => setMode("canvas")} />
+      ) : (
+        <div className="flex flex-1 min-h-0">
+          <LeftSidebar
+            selectedPageId={selectedPageId}
+            onSelectPage={setSelectedPageId}
+            elements={elements}
+            selectedId={selectedId}
+            onSelectElement={setSelectedId}
+          />
 
-        <Canvas selectedId={selectedId} onSelect={setSelectedId} />
+          <Canvas
+            elements={elements}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onMove={handleMove}
+            onInsertAt={(kind, x, y) => handleInsert(kind, x, y)}
+          />
 
-        <RightSidebar selectedLabel={selectedLabel} defaultTab="agent" />
-      </div>
+          <RightSidebar
+            element={selected}
+            defaultTab="agent"
+            onChangeStyle={(patch: Partial<ElementStyle>) => {
+              if (!selectedId) return;
+              commit((prev) =>
+                prev.map((el) =>
+                  el.id === selectedId
+                    ? { ...el, style: { ...el.style, ...patch } }
+                    : el
+                )
+              );
+            }}
+            onChangeProps={(patch) => {
+              if (!selectedId) return;
+              commit((prev) =>
+                prev.map((el) =>
+                  el.id === selectedId
+                    ? { ...el, props: { ...el.props, ...patch } }
+                    : el
+                )
+              );
+            }}
+            onChangeName={(name) => {
+              if (!selectedId) return;
+              updateElement(selectedId, { name });
+            }}
+            onChangeSize={(size) => {
+              if (!selectedId) return;
+              updateElement(selectedId, size);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

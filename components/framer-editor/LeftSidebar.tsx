@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CanvasElement } from "./types";
 import {
   IconSearch,
   IconPlus,
@@ -50,23 +51,6 @@ const PAGES: PageNode[] = [
   { id: "careers", name: "/careers", kind: "page" },
 ];
 
-const LAYERS = [
-  { id: "1", name: "Desktop", depth: 0, locked: false, visible: true },
-  { id: "2", name: "Navigation", depth: 1, locked: false, visible: true },
-  { id: "3", name: "Logo", depth: 2, locked: false, visible: true },
-  { id: "4", name: "Nav Links", depth: 2, locked: false, visible: true },
-  { id: "5", name: "Hero", depth: 1, locked: false, visible: true },
-  { id: "6", name: "Headline", depth: 2, locked: false, visible: true },
-  { id: "7", name: "Subcopy", depth: 2, locked: false, visible: true },
-  { id: "8", name: "CTA Stack", depth: 2, locked: false, visible: true },
-  { id: "9", name: "Hero Media", depth: 2, locked: false, visible: true },
-  { id: "10", name: "Features", depth: 1, locked: false, visible: true },
-  { id: "11", name: "Feature Card 1", depth: 2, locked: false, visible: true },
-  { id: "12", name: "Feature Card 2", depth: 2, locked: false, visible: true },
-  { id: "13", name: "Feature Card 3", depth: 2, locked: false, visible: true },
-  { id: "14", name: "Footer", depth: 1, locked: true, visible: true },
-];
-
 const ASSETS = [
   { name: "haus-logo.svg", type: "SVG" },
   { name: "hero-still.webp", type: "Image" },
@@ -79,15 +63,19 @@ const ASSETS = [
 interface LeftSidebarProps {
   selectedPageId?: string;
   onSelectPage?: (id: string) => void;
-  selectedLayerId?: string;
-  onSelectLayer?: (id: string) => void;
+  elements: CanvasElement[];
+  selectedId: string | null;
+  onSelectElement: (id: string) => void;
+  onAddPage?: () => void;
 }
 
 export default function LeftSidebar({
   selectedPageId = "home",
   onSelectPage,
-  selectedLayerId = "6",
-  onSelectLayer,
+  elements,
+  selectedId,
+  onSelectElement,
+  onAddPage,
 }: LeftSidebarProps) {
   const [tab, setTab] = useState<LeftTab>("pages");
   const [query, setQuery] = useState("");
@@ -101,7 +89,6 @@ export default function LeftSidebar({
       className="flex flex-col border-r border-[#222] bg-[#111] shrink-0 h-full"
       style={{ width: "var(--framer-left-w)" }}
     >
-      {/* Tabs */}
       <div className="flex items-center gap-0.5 px-2 pt-2 pb-1 relative z-10">
         {(["pages", "layers", "assets"] as LeftTab[]).map((t) => (
           <button
@@ -121,7 +108,6 @@ export default function LeftSidebar({
         ))}
       </div>
 
-      {/* Search */}
       <div className="px-2 py-1.5">
         <div className="relative">
           <IconSearch
@@ -142,12 +128,17 @@ export default function LeftSidebar({
           <>
             <div className="flex items-center justify-between px-2 py-1.5 text-[11px] uppercase tracking-wide text-[#666]">
               <span>Pages</span>
-              <button className="framer-icon-btn w-6 h-6" type="button">
+              <button
+                className="framer-icon-btn w-6 h-6"
+                type="button"
+                onClick={onAddPage}
+              >
                 <IconPlus size={13} />
               </button>
             </div>
-            {PAGES.filter((p) =>
-              !query || p.name.toLowerCase().includes(query.toLowerCase())
+            {PAGES.filter(
+              (p) =>
+                !query || p.name.toLowerCase().includes(query.toLowerCase())
             ).map((node) => (
               <PageTreeItem
                 key={node.id}
@@ -171,28 +162,34 @@ export default function LeftSidebar({
                 <IconLayers size={12} />
                 Layers
               </span>
-              <span className="normal-case tracking-normal text-[#555]">17</span>
+              <span className="normal-case tracking-normal text-[#555]">
+                {elements.length}
+              </span>
             </div>
-            {LAYERS.filter(
-              (l) =>
-                !query || l.name.toLowerCase().includes(query.toLowerCase())
-            ).map((layer) => (
-              <button
-                key={layer.id}
-                type="button"
-                className={`framer-tree-item w-full ${
-                  selectedLayerId === layer.id ? "selected" : ""
-                }`}
-                style={{ paddingLeft: 8 + layer.depth * 14 }}
-                onClick={() => onSelectLayer?.(layer.id)}
-              >
-                <span className="flex-1 text-left truncate">{layer.name}</span>
-                <span className="flex items-center gap-1 text-[#555]">
-                  {layer.locked && <IconLock size={12} />}
-                  <IconEye size={12} className={layer.visible ? "" : "opacity-30"} />
-                </span>
-              </button>
-            ))}
+            {elements
+              .filter(
+                (l) =>
+                  !query || l.name.toLowerCase().includes(query.toLowerCase())
+              )
+              .map((layer) => (
+                <button
+                  key={layer.id}
+                  type="button"
+                  className={`framer-tree-item w-full ${
+                    selectedId === layer.id ? "selected" : ""
+                  }`}
+                  onClick={() => onSelectElement(layer.id)}
+                >
+                  <span className="flex-1 text-left truncate">{layer.name}</span>
+                  <span className="flex items-center gap-1 text-[#555]">
+                    {layer.locked && <IconLock size={12} />}
+                    <IconEye
+                      size={12}
+                      className={layer.visible === false ? "opacity-30" : ""}
+                    />
+                  </span>
+                </button>
+              ))}
           </>
         )}
 

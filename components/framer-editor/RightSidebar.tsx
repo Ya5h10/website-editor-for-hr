@@ -1,21 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AgentPanel from "./AgentPanel";
 import StylePanel from "./StylePanel";
+import { CanvasElement, ElementStyle } from "./types";
 
 type RightTab = "agent" | "style";
 
 interface RightSidebarProps {
-  selectedLabel?: string;
+  element?: CanvasElement | null;
   defaultTab?: RightTab;
+  preferStyleWhenSelected?: boolean;
+  onChangeStyle?: (patch: Partial<ElementStyle>) => void;
+  onChangeProps?: (patch: CanvasElement["props"]) => void;
+  onChangeName?: (name: string) => void;
+  onChangeSize?: (size: { width?: number; height?: number }) => void;
 }
 
 export default function RightSidebar({
-  selectedLabel,
+  element,
   defaultTab = "agent",
+  preferStyleWhenSelected = true,
+  onChangeStyle,
+  onChangeProps,
+  onChangeName,
+  onChangeSize,
 }: RightSidebarProps) {
   const [tab, setTab] = useState<RightTab>(defaultTab);
+
+  useEffect(() => {
+    if (preferStyleWhenSelected && element) {
+      setTab("style");
+    }
+  }, [element?.id, preferStyleWhenSelected]);
 
   return (
     <aside
@@ -44,7 +61,13 @@ export default function RightSidebar({
         {tab === "agent" ? (
           <AgentPanel />
         ) : (
-          <StylePanel selectedLabel={selectedLabel} />
+          <StylePanel
+            element={element}
+            onChangeStyle={onChangeStyle}
+            onChangeProps={onChangeProps}
+            onChangeName={onChangeName}
+            onChangeSize={onChangeSize}
+          />
         )}
       </div>
     </aside>
