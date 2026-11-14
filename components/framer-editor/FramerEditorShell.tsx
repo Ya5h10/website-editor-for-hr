@@ -13,6 +13,7 @@ import {
   ElementStyle,
   InsertKind,
   TailwindClassMap,
+  canHaveChildren,
   createElement,
   createInitialElements,
 } from "./types";
@@ -76,16 +77,51 @@ export default function FramerEditorShell({
   );
 
   const handleInsert = useCallback(
-    (kind: InsertKind, x = 120, y = 140) => {
+    (kind: InsertKind, x = 120, y = 140, parentId: string | null = null) => {
       const el = createElement(kind, {
         x,
         y,
+        parentId,
       });
       commit((prev) => [...prev, el]);
       setSelectedId(el.id);
       setMode("canvas");
     },
     [commit]
+  );
+
+  const handleAddChild = useCallback(
+    (kind: InsertKind) => {
+      if (!selectedId) return;
+      const parent = elements.find((e) => e.id === selectedId);
+      if (!parent || !canHaveChildren(parent)) return;
+      const kids = elements.filter((e) => e.parentId === selectedId);
+      const y = 16 + kids.length * 56;
+      handleInsert(kind, 16, y, selectedId);
+    },
+    [selectedId, elements, handleInsert]
+  );
+
+  const handleDetachChild = useCallback(
+    (childId: string) => {
+      const child = elements.find((e) => e.id === childId);
+      const parent = child?.parentId
+        ? elements.find((e) => e.id === child.parentId)
+        : null;
+      commit((prev) =>
+        prev.map((el) =>
+          el.id === childId
+            ? {
+                ...el,
+                parentId: null,
+                x: (parent?.x || 0) + el.x,
+                y: (parent?.y || 0) + el.y,
+              }
+            : el
+        )
+      );
+    },
+    [elements, commit]
   );
 
   const handleMove = useCallback((id: string, x: number, y: number) => {
@@ -171,6 +207,7 @@ export default function FramerEditorShell({
 
           <RightSidebar
             element={selected}
+            elements={elements}
             defaultTab="agent"
             onChangeStyle={(patch: Partial<ElementStyle>) => {
               if (!selectedId) return;
@@ -225,6 +262,9 @@ export default function FramerEditorShell({
               if (!selectedId) return;
               updateElement(selectedId, { tailwindExtra: extra });
             }}
+            onSelectChild={setSelectedId}
+            onAddChild={handleAddChild}
+            onDetachChild={handleDetachChild}
             onExportElement={() => openCodeExport("element")}
           />
         </div>

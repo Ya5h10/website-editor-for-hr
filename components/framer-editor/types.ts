@@ -13,7 +13,8 @@ export type InsertKind =
   | "hero"
   | "feature_split"
   | "values_grid"
-  | "features";
+  | "features"
+  | "custom";
 
 export type CanvasElementType = InsertKind;
 
@@ -39,6 +40,8 @@ export interface CanvasElement {
   height: number;
   locked?: boolean;
   visible?: boolean;
+  /** Parent layer id — null/undefined = root on the page artboard. */
+  parentId?: string | null;
   style: ElementStyle;
   /** Structured Tailwind utility picks (one class per property). */
   tailwind?: TailwindClassMap;
@@ -56,8 +59,61 @@ export interface CanvasElement {
     items?: Array<{ title: string; text: string; image_url?: string }>;
     features?: Array<{ title: string; description: string }>;
     brandColor?: string;
+    /** Custom code component source (React function component). */
+    customCode?: string;
+    componentName?: string;
   };
 }
+
+/** Elements that can contain nested children. */
+export const CONTAINER_TYPES: CanvasElementType[] = [
+  "frame",
+  "stack",
+  "hero",
+  "feature_split",
+  "custom",
+];
+
+export function canHaveChildren(el: Pick<CanvasElement, "type">): boolean {
+  return CONTAINER_TYPES.includes(el.type);
+}
+
+export function getRootElements(elements: CanvasElement[]): CanvasElement[] {
+  return elements.filter((el) => !el.parentId);
+}
+
+export function getChildElements(
+  elements: CanvasElement[],
+  parentId: string
+): CanvasElement[] {
+  return elements
+    .filter((el) => el.parentId === parentId)
+    .slice()
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+}
+
+export function getDescendantIds(
+  elements: CanvasElement[],
+  parentId: string
+): string[] {
+  const kids = elements.filter((el) => el.parentId === parentId);
+  return kids.flatMap((k) => [k.id, ...getDescendantIds(elements, k.id)]);
+}
+
+export const DEFAULT_CUSTOM_CODE = `export default function CustomBlock({ children, title = "Custom block" }) {
+  return (
+    <div className="w-full h-full rounded-xl border border-white/10 bg-zinc-900/80 p-5 text-white">
+      <div className="text-[13px] font-semibold tracking-wide text-white/90">
+        {title}
+      </div>
+      <p className="mt-1 text-[12px] text-white/55">
+        Edit this component's code in the Style panel.
+      </p>
+      <div className="mt-4 flex flex-col gap-2">{children}</div>
+    </div>
+  );
+}
+`;
 
 export const defaultStyle = (
   overrides: Partial<ElementStyle> = {}
@@ -93,6 +149,7 @@ export function createElement(
     height: 120,
     visible: true,
     locked: false,
+    parentId: null,
     style: defaultStyle(),
     tailwind: emptyTailwind(),
     tailwindExtra: "",
@@ -101,6 +158,19 @@ export function createElement(
   };
 
   switch (kind) {
+    case "custom":
+      return {
+        ...base,
+        name: "Custom",
+        width: 360,
+        height: 220,
+        style: defaultStyle({ fill: "#111111", radius: 12, padding: 0 }),
+        props: {
+          componentName: "CustomBlock",
+          customCode: DEFAULT_CUSTOM_CODE,
+          heading: "Custom block",
+        },
+      };
     case "frame":
       return {
         ...base,
@@ -246,6 +316,8 @@ export function labelFor(kind: InsertKind): string {
       return "Values Grid";
     case "features":
       return "Features";
+    case "custom":
+      return "Code component";
     default:
       return "Element";
   }

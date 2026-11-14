@@ -1,4 +1,9 @@
-import { CanvasElement } from "./types";
+import {
+  CanvasElement,
+  DEFAULT_CUSTOM_CODE,
+  getChildElements,
+  getRootElements,
+} from "./types";
 import { buildTailwindClassName } from "./tailwindStyles";
 
 function classNameJsx(el: CanvasElement): string {
@@ -64,6 +69,13 @@ function componentNameFor(el: CanvasElement, used: Set<string>): string {
   if (el.id === "ticker" || el.name === "Hero Media") {
     return uniqueName("HeroMedia", used, "HeroMedia");
   }
+  if (el.type === "custom") {
+    return uniqueName(
+      el.props.componentName || el.name || "CustomBlock",
+      used,
+      "CustomBlock"
+    );
+  }
   const byType: Record<string, string> = {
     hero: "Hero",
     button: "Button",
@@ -104,16 +116,42 @@ interface BuiltComponent {
 function buildElementComponent(
   el: CanvasElement,
   name: string,
-  opts: { standalone: boolean }
+  opts: { standalone: boolean; childJsx?: string }
 ): BuiltComponent {
   const propsType = `${name}Props`;
   const s = el.style;
   const radius = s.radius === 999 ? 9999 : s.radius;
   const opacity = s.opacity / 100;
+  const childJsx = opts.childJsx?.trim()
+    ? `\n${opts.childJsx.trim()}\n    `
+    : "";
 
   let source = "";
 
   switch (el.type) {
+    case "custom": {
+      const raw = (el.props.customCode || DEFAULT_CUSTOM_CODE).trim();
+      // Prefer user's source; rewrite export name to match our component id.
+      let body = raw
+        .replace(
+          /export\s+default\s+function\s+[A-Za-z0-9_]+/,
+          `export function ${name}`
+        )
+        .replace(
+          /export\s+default\s+/,
+          `export const ${name} = `
+        );
+      if (!body.includes(`function ${name}`) && !body.includes(`const ${name}`)) {
+        body = `export function ${name}({ children, title = ${escapeStr(
+          el.props.heading || el.name
+        )}, className }: { children?: React.ReactNode; title?: string; className?: string }) {\n  return (\n    <div className={className}>{children}</div>\n  );\n}\n`;
+      }
+      if (opts.standalone) {
+        body += `\nexport default ${name};\n`;
+      }
+      source = body;
+      break;
+    }
     case "button": {
       source = `export type ${propsType} = {
   label?: string;
@@ -556,6 +594,47 @@ export function ${name}({
     case "stack":
     case "frame":
     default: {
+      if (el.type === "frame" || (el.type === "stack" && el.id !== "nav" && el.id !== "ticker" && el.name !== "Hero Media")) {
+        source = `export type ${propsType} = {
+  children?: React.ReactNode;
+  className?: string;
+};
+
+export function ${name}({
+  children,
+  className,
+}: ${propsType}) {
+  return (
+    <div
+      className=${classNameJsx(el)}
+      style={${styleObjectLiteral([
+        ["position", "relative"],
+        ["width", "100%"],
+        ["maxWidth", px(el.width)],
+        ["minHeight", px(el.height)],
+        ["padding", s.padding || 16],
+        ["borderRadius", radius || 10],
+        [
+          "background",
+          s.fill && s.fill !== "transparent" ? s.fill : "#151515",
+        ],
+        ["opacity", opacity],
+      ])}}
+    >
+      {children ?? null}${childJsx ? "" : ""}
+    </div>
+  );
+}
+`;
+        // Inject nested children into the container when exporting a tree.
+        if (childJsx) {
+          source = source.replace(
+            "{children ?? null}",
+            `{children ?? (<>${childJsx}</>)}`
+          );
+        }
+        break;
+      }
       if (el.id === "nav") {
         source = `export type ${propsType} = {
   brand?: string;
@@ -795,6 +874,47 @@ export function generateReactCode(
 
   const used = new Set<string>();
 
+  // Assign stable component names for every visible layer first.
+  const nameById = new Map<string, string>();
+  for (const el of visible) {
+    nameById.set(el.id, componentNameFor(el, used));
+  }
+
+  const childJsxFor = (parentId: string, indent = "      "): string => {
+    const kids = getChildElements(visible, parentId);
+    if (!kids.length) return "";
+    return kids
+      .map((kid) => {
+        const n = nameById.get(kid.id)!;
+        const nested = childJsxFor(kid.id, indent + "  ");
+        if (nested) {
+          return `${indent}<${n}>\n${nested}\n${indent}</${n}>`;
+        }
+        return `${indent}<${n} />`;
+      })
+      .join("\n");
+  };
+
+  const buildTree = (
+    el: CanvasElement,
+    standalone: boolean
+  ): BuiltComponent[] => {
+    const name = nameById.get(el.id)!;
+    const kids = getChildElements(visible, el.id);
+    const self = buildElementComponent(el, name, { standalone });
+    const nested = kids.flatMap((k) => buildTree(k, false));
+    return [...nested, self];
+  };
+
+  const renderCall = (el: CanvasElement, indent: string): string => {
+    const name = nameById.get(el.id)!;
+    const kidsJsx = childJsxFor(el.id, indent + "  ");
+    if (kidsJsx) {
+      return `${indent}<${name}>\n${kidsJsx}\n${indent}</${name}>`;
+    }
+    return `${indent}<${name} />`;
+  };
+
   if (scope === "element") {
     const target =
       visible.find((el) => el.id === options.elementId) ||
@@ -802,58 +922,62 @@ export function generateReactCode(
     if (!target) {
       return `// No element selected — pick a layer on the canvas, then export again.\nexport default function Empty() {\n  return null;\n}\n`;
     }
-    const name =
-      options.componentName ||
-      componentNameFor(target, used);
-    // ensure name reserved
-    used.add(name);
-    const built = buildElementComponent(target, name, { standalone: true });
+    const name = nameById.get(target.id) || componentNameFor(target, used);
+    const tree = buildTree(target, false);
+    const childCount = getChildElements(visible, target.id).length;
+    const defaultExport = `
+export default function ${name}Example() {
+  return (
+${renderCall(target, "    ")}
+  );
+}
+`;
     const importPath = `./${name}`;
     return (
       fileBanner([
         `Auto-generated React component from the editor canvas.`,
-        `Scope: single element · ${target.name} (${target.type})`,
-        `Artboard position: x=${target.x}, y=${target.y}, ${target.width}×${target.height}`,
+        `Scope: element · ${target.name} (${target.type})`,
+        childCount
+          ? `Includes ${childCount} direct child layer(s).`
+          : `Artboard position: x=${target.x}, y=${target.y}, ${target.width}×${target.height}`,
       ]) +
       `import React from "react";\n\n` +
-      usageBlock(importPath, [name], false) +
+      usageBlock(
+        importPath,
+        [name, ...tree.map((t) => t.name).filter((n) => n !== name)],
+        false
+      ) +
       "\n" +
-      built.source
+      tree.map((t) => t.source.trimEnd()).join("\n\n") +
+      "\n" +
+      defaultExport
     );
   }
 
-  // Full page
+  // Full page — roots only in the page body; children nested in parents.
   const pageComponent =
     options.componentName || `${toPascal(pageName, "Home")}Page`;
   used.add(pageComponent);
 
-  const builtList: BuiltComponent[] = visible.map((el) => {
-    const name = componentNameFor(el, used);
-    return buildElementComponent(el, name, { standalone: false });
-  });
+  const roots = getRootElements(visible);
+  const builtList = roots.flatMap((el) => buildTree(el, false));
 
-  // Compute vertical rhythm from canvas positions
   let prevBottom = 0;
-  const sectionLits = builtList.map((b, index) => {
-    const el = b.element;
+  const sectionLits = roots.map((el, index) => {
     const gap = index === 0 ? el.y : Math.max(0, el.y - prevBottom);
     prevBottom = el.y + el.height;
     const padLeft = el.x;
+    const inner = renderCall(el, "      ").trimStart();
+    if (el.id === "nav") {
+      return `      ${inner}`;
+    }
     const styleBits: string[] = [];
     if (gap > 0) styleBits.push(`marginTop: ${gap}`);
-    if (padLeft > 0 && el.id !== "nav") styleBits.push(`marginLeft: ${padLeft}`);
-    if (el.id === "nav") {
-      return `      <${b.name} />`;
-    }
-    const styleProp =
-      styleBits.length > 0
-        ? ` style={{ ${styleBits.join(", ")} }}`
-        : "";
-    // Pass className-less; use wrapper for layout offsets
+    if (padLeft > 0) styleBits.push(`marginLeft: ${padLeft}`);
     if (styleBits.length > 0) {
-      return `      <div${styleProp}>\n        <${b.name} />\n      </div>`;
+      return `      <div style={{ ${styleBits.join(", ")} }}>\n        ${inner}\n      </div>`;
     }
-    return `      <${b.name} />`;
+    return `      ${inner}`;
   });
 
   const height = Math.max(
@@ -862,7 +986,7 @@ export function generateReactCode(
     0
   );
 
-  const namedExports = builtList.map((b) => b.name);
+  const namedExports = [...nameById.values()];
 
   const pageSource = `export type ${pageComponent}Props = {
   className?: string;
@@ -894,13 +1018,22 @@ ${sectionLits.join("\n\n") || "      null"}
 }
 `;
 
-  const sectionsSource = builtList.map((b) => b.source.trimEnd()).join("\n\n");
+  // Deduplicate built components by name (buildTree may visit uniquely)
+  const seen = new Set<string>();
+  const sectionsSource = builtList
+    .filter((b) => {
+      if (seen.has(b.name)) return false;
+      seen.add(b.name);
+      return true;
+    })
+    .map((b) => b.source.trimEnd())
+    .join("\n\n");
 
   return (
     fileBanner([
       `Auto-generated from the Framer-style editor canvas.`,
-      `Page: ${pageName} · ${visible.length} visible layers`,
-      `Layout: document flow with spacing derived from the Desktop 1200 artboard.`,
+      `Page: ${pageName} · ${visible.length} visible layers (${roots.length} roots)`,
+      `Layout: nested components with spacing from the Desktop 1200 artboard.`,
     ]) +
     `import React from "react";\n\n` +
     usageBlock(`./${pageComponent}`, [pageComponent, ...namedExports], true) +

@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { CanvasElement } from "./types";
+import {
+  CanvasElement,
+  canHaveChildren,
+  getChildElements,
+  getRootElements,
+} from "./types";
 import {
   IconSearch,
   IconPlus,
@@ -83,6 +88,9 @@ export default function LeftSidebar({
     work: true,
     legal: true,
   });
+  const [expandedLayers, setExpandedLayers] = useState<Record<string, boolean>>(
+    {}
+  );
 
   return (
     <aside
@@ -166,30 +174,29 @@ export default function LeftSidebar({
                 {elements.length}
               </span>
             </div>
-            {elements
-              .filter(
-                (l) =>
-                  !query || l.name.toLowerCase().includes(query.toLowerCase())
-              )
-              .map((layer) => (
-                <button
-                  key={layer.id}
-                  type="button"
-                  className={`framer-tree-item w-full ${
-                    selectedId === layer.id ? "selected" : ""
-                  }`}
-                  onClick={() => onSelectElement(layer.id)}
-                >
-                  <span className="flex-1 text-left truncate">{layer.name}</span>
-                  <span className="flex items-center gap-1 text-[#555]">
-                    {layer.locked && <IconLock size={12} />}
-                    <IconEye
-                      size={12}
-                      className={layer.visible === false ? "opacity-30" : ""}
-                    />
-                  </span>
-                </button>
-              ))}
+            {(query
+              ? elements.filter((l) =>
+                  l.name.toLowerCase().includes(query.toLowerCase())
+                )
+              : getRootElements(elements)
+            ).map((layer) => (
+              <LayerTreeItem
+                key={layer.id}
+                layer={layer}
+                elements={elements}
+                depth={0}
+                selectedId={selectedId}
+                query={query}
+                expanded={expandedLayers}
+                onToggle={(id) =>
+                  setExpandedLayers((prev) => ({
+                    ...prev,
+                    [id]: !prev[id],
+                  }))
+                }
+                onSelect={onSelectElement}
+              />
+            ))}
           </>
         )}
 
@@ -279,6 +286,109 @@ function PageTreeItem({
             node={child}
             depth={depth + 1}
             selectedId={selectedId}
+            expanded={expanded}
+            onToggle={onToggle}
+            onSelect={onSelect}
+          />
+        ))}
+    </div>
+  );
+}
+
+function LayerTreeItem({
+  layer,
+  elements,
+  depth,
+  selectedId,
+  query,
+  expanded,
+  onToggle,
+  onSelect,
+}: {
+  layer: CanvasElement;
+  elements: CanvasElement[];
+  depth: number;
+  selectedId: string | null;
+  query: string;
+  expanded: Record<string, boolean>;
+  onToggle: (id: string) => void;
+  onSelect: (id: string) => void;
+}) {
+  const kids = getChildElements(elements, layer.id);
+  const hasKids = canHaveChildren(layer) && kids.length > 0;
+  const isOpen = query ? true : expanded[layer.id] ?? true;
+
+  // When searching, flatten — parent already filtered list, don't recurse unless matching kids
+  if (query) {
+    return (
+      <button
+        type="button"
+        className={`framer-tree-item w-full ${
+          selectedId === layer.id ? "selected" : ""
+        }`}
+        style={{ paddingLeft: 8 + depth * 14 }}
+        onClick={() => onSelect(layer.id)}
+      >
+        <span className="w-3 shrink-0" />
+        <span className="flex-1 text-left truncate">{layer.name}</span>
+        <span className="flex items-center gap-1 text-[#555]">
+          {layer.type === "custom" ? (
+            <span className="text-[10px] text-[#0099ff]">code</span>
+          ) : null}
+          {layer.locked && <IconLock size={12} />}
+          <IconEye
+            size={12}
+            className={layer.visible === false ? "opacity-30" : ""}
+          />
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        className={`framer-tree-item w-full ${
+          selectedId === layer.id ? "selected" : ""
+        }`}
+        style={{ paddingLeft: 8 + depth * 14 }}
+        onClick={() => {
+          if (hasKids) onToggle(layer.id);
+          onSelect(layer.id);
+        }}
+      >
+        {hasKids ? (
+          isOpen ? (
+            <IconChevronDown size={12} className="text-[#666] shrink-0" />
+          ) : (
+            <IconChevronRight size={12} className="text-[#666] shrink-0" />
+          )
+        ) : (
+          <span className="w-3 shrink-0" />
+        )}
+        <span className="flex-1 text-left truncate">{layer.name}</span>
+        <span className="flex items-center gap-1 text-[#555]">
+          {layer.type === "custom" ? (
+            <span className="text-[10px] text-[#0099ff]">code</span>
+          ) : null}
+          {layer.locked && <IconLock size={12} />}
+          <IconEye
+            size={12}
+            className={layer.visible === false ? "opacity-30" : ""}
+          />
+        </span>
+      </button>
+      {hasKids &&
+        isOpen &&
+        kids.map((child) => (
+          <LayerTreeItem
+            key={child.id}
+            layer={child}
+            elements={elements}
+            depth={depth + 1}
+            selectedId={selectedId}
+            query={query}
             expanded={expanded}
             onToggle={onToggle}
             onSelect={onSelect}

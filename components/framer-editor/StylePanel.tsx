@@ -1,35 +1,56 @@
 "use client";
 
-import { useState } from "react";
-import { CanvasElement, ElementStyle, TailwindClassMap } from "./types";
+import { useEffect, useState } from "react";
+import {
+  CanvasElement,
+  ElementStyle,
+  InsertKind,
+  TailwindClassMap,
+  DEFAULT_CUSTOM_CODE,
+} from "./types";
 import { IconChevronDown } from "./icons";
 import TailwindDesignPanel from "./TailwindDesignPanel";
+import ChildrenPanel from "./ChildrenPanel";
 import { countTailwindClasses } from "./tailwindStyles";
 
 interface StylePanelProps {
   element?: CanvasElement | null;
+  elements?: CanvasElement[];
   onChangeStyle?: (patch: Partial<ElementStyle>) => void;
   onChangeProps?: (patch: CanvasElement["props"]) => void;
   onChangeName?: (name: string) => void;
   onChangeSize?: (size: { width?: number; height?: number }) => void;
   onChangeTailwind?: (patch: TailwindClassMap) => void;
   onChangeTailwindExtra?: (extra: string) => void;
+  onSelectChild?: (id: string) => void;
+  onAddChild?: (kind: InsertKind) => void;
+  onDetachChild?: (id: string) => void;
   onExportElement?: () => void;
 }
 
-type StyleTab = "design" | "tailwind";
+type StyleTab = "design" | "code" | "tailwind";
 
 export default function StylePanel({
   element,
+  elements = [],
   onChangeStyle,
   onChangeProps,
   onChangeName,
   onChangeSize,
   onChangeTailwind,
   onChangeTailwindExtra,
+  onSelectChild,
+  onAddChild,
+  onDetachChild,
   onExportElement,
 }: StylePanelProps) {
-  const [styleTab, setStyleTab] = useState<StyleTab>("tailwind");
+  const [styleTab, setStyleTab] = useState<StyleTab>(
+    element?.type === "custom" ? "code" : "design"
+  );
+
+  useEffect(() => {
+    if (element?.type === "custom") setStyleTab("code");
+  }, [element?.id, element?.type]);
 
   if (!element) {
     return (
@@ -69,6 +90,19 @@ export default function StylePanel({
           >
             Design
           </button>
+          {element.type === "custom" ? (
+            <button
+              type="button"
+              className={`flex-1 rounded text-[11.5px] ${
+                styleTab === "code"
+                  ? "bg-[#2a2a2a] text-white"
+                  : "text-[#777] hover:text-white"
+              }`}
+              onClick={() => setStyleTab("code")}
+            >
+              Code
+            </button>
+          ) : null}
           <button
             type="button"
             className={`flex-1 rounded text-[11.5px] ${
@@ -83,7 +117,71 @@ export default function StylePanel({
         </div>
       </div>
 
-      {styleTab === "tailwind" ? (
+      {onAddChild && onSelectChild ? (
+        <div className="shrink-0 max-h-[40%] overflow-y-auto framer-scrollbar border-b border-[#222]">
+          <ChildrenPanel
+            element={element}
+            elements={elements}
+            onSelectChild={onSelectChild}
+            onAddChild={onAddChild}
+            onDetachChild={onDetachChild}
+          />
+        </div>
+      ) : null}
+
+      {styleTab === "code" && element.type === "custom" ? (
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="px-3 py-2 border-b border-[#222] space-y-2 shrink-0">
+            <Field label="Component name">
+              <input
+                className="framer-input font-mono"
+                value={element.props.componentName || "CustomBlock"}
+                onChange={(e) => {
+                  const componentName = e.target.value.replace(
+                    /[^A-Za-z0-9_]/g,
+                    ""
+                  );
+                  onChangeProps?.({ componentName });
+                  if (componentName) onChangeName?.(componentName);
+                }}
+              />
+            </Field>
+            <Field label="Default title prop">
+              <input
+                className="framer-input"
+                value={element.props.heading || ""}
+                onChange={(e) => onChangeProps?.({ heading: e.target.value })}
+              />
+            </Field>
+          </div>
+          <div className="px-3 py-2 flex items-center justify-between shrink-0 border-b border-[#222]">
+            <div className="text-[11px] text-[#666]">React component source</div>
+            <button
+              type="button"
+              className="text-[11px] text-[#888] hover:text-white"
+              onClick={() =>
+                onChangeProps?.({
+                  customCode: DEFAULT_CUSTOM_CODE,
+                  componentName: "CustomBlock",
+                })
+              }
+            >
+              Reset template
+            </button>
+          </div>
+          <textarea
+            className="flex-1 min-h-0 w-full bg-[#0d0d0d] border-0 px-3 py-3 text-[12px] leading-relaxed text-[#d4d4d4] font-mono outline-none resize-none framer-scrollbar"
+            spellCheck={false}
+            value={element.props.customCode || DEFAULT_CUSTOM_CODE}
+            onChange={(e) => onChangeProps?.({ customCode: e.target.value })}
+          />
+          <p className="px-3 py-2 text-[10.5px] text-[#555] leading-relaxed border-t border-[#222] shrink-0">
+            Export a default function component. Use{" "}
+            <code className="text-[#888]">{"{children}"}</code> for nested
+            layers. Live preview updates on the canvas.
+          </p>
+        </div>
+      ) : styleTab === "tailwind" ? (
         <div className="flex-1 min-h-0 flex flex-col">
           <TailwindDesignPanel
             tailwind={element.tailwind}
@@ -105,6 +203,7 @@ export default function StylePanel({
         </div>
       ) : (
       <div className="flex-1 overflow-y-auto framer-scrollbar min-h-0">
+
 
       {/* Orbit / content forms */}
       <Section title="Content">

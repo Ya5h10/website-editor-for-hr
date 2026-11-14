@@ -2,12 +2,19 @@
 
 import { useRef, useState } from "react";
 import FloatingToolbar from "./FloatingToolbar";
-import { CanvasElement, InsertKind } from "./types";
+import {
+  CanvasElement,
+  InsertKind,
+  canHaveChildren,
+  getChildElements,
+  getRootElements,
+} from "./types";
 import { IconDesktop, IconPlay, IconPlus } from "./icons";
 import {
   buildTailwindClassName,
   twOverridesInline,
 } from "./tailwindStyles";
+import CustomCodeRenderer from "./CustomCodeRenderer";
 
 interface CanvasProps {
   elements: CanvasElement[];
@@ -140,13 +147,14 @@ export default function Canvas({
                 handleDrop(e);
               }}
             >
-              {elements
+              {getRootElements(elements)
                 .filter((el) => el.visible !== false)
                 .map((el) => (
                   <CanvasNode
                     key={el.id}
                     el={el}
-                    selected={selectedId === el.id}
+                    elements={elements}
+                    selectedId={selectedId}
                     onPointerDown={onPointerDownElement}
                     onPointerMove={onPointerMoveElement}
                     onPointerUp={onPointerUpElement}
@@ -164,19 +172,25 @@ export default function Canvas({
 
 function CanvasNode({
   el,
-  selected,
+  elements,
+  selectedId,
   onPointerDown,
   onPointerMove,
   onPointerUp,
 }: {
   el: CanvasElement;
-  selected: boolean;
+  elements: CanvasElement[];
+  selectedId: string | null;
   onPointerDown: (e: React.PointerEvent, el: CanvasElement) => void;
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: () => void;
 }) {
+  const selected = selectedId === el.id;
   const twClass = buildTailwindClassName(el.tailwind, el.tailwindExtra);
   const skip = twOverridesInline(el.tailwind);
+  const children = canHaveChildren(el)
+    ? getChildElements(elements, el.id).filter((c) => c.visible !== false)
+    : [];
 
   return (
     <div
@@ -219,7 +233,19 @@ function CanvasNode({
           <Handle className="top-1/2 -right-1 -translate-y-1/2" />
         </>
       )}
-      <ElementBody el={el} />
+      <ElementBody el={el}>
+        {children.map((child) => (
+          <CanvasNode
+            key={child.id}
+            el={child}
+            elements={elements}
+            selectedId={selectedId}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+          />
+        ))}
+      </ElementBody>
     </div>
   );
 }
@@ -232,7 +258,29 @@ function Handle({ className }: { className: string }) {
   );
 }
 
-function ElementBody({ el }: { el: CanvasElement }) {
+function ElementBody({
+  el,
+  children,
+}: {
+  el: CanvasElement;
+  children?: React.ReactNode;
+}) {
+  if (el.type === "custom") {
+    return (
+      <div className="relative w-full h-full overflow-hidden rounded-[inherit]">
+        <CustomCodeRenderer
+          code={el.props.customCode}
+          componentName={el.props.componentName}
+          title={el.props.heading || el.name}
+        />
+        {/* Nested canvas layers (absolute within this parent) */}
+        <div className="absolute inset-0 pointer-events-none [&>*]:pointer-events-auto">
+          {children}
+        </div>
+      </div>
+    );
+  }
+
   if (el.type === "button") {
     return (
       <div className="w-full h-full flex items-center justify-center rounded-[inherit]">
@@ -338,25 +386,28 @@ function ElementBody({ el }: { el: CanvasElement }) {
       </div>
     );
     return (
-      <div className="grid grid-cols-2 gap-6 w-full h-full">
-        {imageLeft ? (
-          <>
-            {media}
-            {copy}
-          </>
-        ) : (
-          <>
-            {copy}
-            {media}
-          </>
-        )}
+      <div className="relative w-full h-full">
+        <div className="grid grid-cols-2 gap-6 w-full h-full">
+          {imageLeft ? (
+            <>
+              {media}
+              {copy}
+            </>
+          ) : (
+            <>
+              {copy}
+              {media}
+            </>
+          )}
+        </div>
+        <ChildLayer>{children}</ChildLayer>
       </div>
     );
   }
 
   if (el.type === "hero") {
     return (
-      <div className="w-full h-full flex flex-col justify-center">
+      <div className="relative w-full h-full flex flex-col justify-center">
         <div
           className="leading-[1.05] tracking-[-0.03em] font-semibold"
           style={{ fontSize: el.style.fontSize, color: el.style.color }}
@@ -366,6 +417,7 @@ function ElementBody({ el }: { el: CanvasElement }) {
         <p className="mt-4 text-[15px] text-white/60 max-w-[560px]">
           {el.props.subheading}
         </p>
+        <ChildLayer>{children}</ChildLayer>
       </div>
     );
   }
@@ -385,12 +437,34 @@ function ElementBody({ el }: { el: CanvasElement }) {
   }
 
   // text / frame / stack default
+  if (el.type === "frame" || el.type === "stack") {
+    return (
+      <div className="relative w-full h-full rounded-[inherit]">
+        {!children ? (
+          <div className="absolute inset-0 flex items-center justify-center text-[12px] text-white/35 pointer-events-none">
+            {el.props.heading || el.name} · drop children here
+          </div>
+        ) : null}
+        <ChildLayer>{children}</ChildLayer>
+      </div>
+    );
+  }
+
   return (
     <div
       className="w-full h-full leading-[1.15] tracking-[-0.02em]"
       style={{ whiteSpace: "pre-wrap" }}
     >
       {el.props.text || el.props.heading || el.name}
+    </div>
+  );
+}
+
+function ChildLayer({ children }: { children?: React.ReactNode }) {
+  if (!children) return null;
+  return (
+    <div className="absolute inset-0 pointer-events-none [&>*]:pointer-events-auto">
+      {children}
     </div>
   );
 }

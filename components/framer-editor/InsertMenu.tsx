@@ -17,6 +17,7 @@ const GROUPS: { title: string; items: InsertKind[] }[] = [
     title: "Orbit blocks",
     items: ["hero", "feature_split", "values_grid", "features"],
   },
+  { title: "Code", items: ["custom"] },
 ];
 
 interface InsertMenuProps {
@@ -99,6 +100,8 @@ function KindIcon({ kind }: { kind: InsertKind }) {
     case "values_grid":
     case "features":
       return <IconLayers size={14} />;
+    case "custom":
+      return <IconComponent size={14} />;
     default:
       return <IconComponent size={14} />;
   }
