@@ -4,7 +4,6 @@ import { useEffect, useCallback, useState, useRef } from 'react';
 import { useForm, useFieldArray, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChevronUp, ChevronDown, Trash2, Plus } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
 import { editorFormSchema, EditorFormData, BlockFormData } from './schema';
 import { Block } from '@/types/schema';
 import TextInput from './inputs/TextInput';
@@ -92,18 +91,6 @@ export default function EditorForm({
   const saveStatus = externalSaveStatus ?? internalSaveStatus;
   const setSaveStatus = onSaveStatusChange ?? setInternalSaveStatus;
   
-  // Validate environment variables before creating Supabase client
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('Missing Supabase configuration. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file.');
-  }
-  
-  const supabase = supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
-
   const form = useForm<EditorFormData>({
     resolver: zodResolver(editorFormSchema),
     defaultValues: {
@@ -203,21 +190,14 @@ export default function EditorForm({
   };
 
   const handleSave = useCallback(async () => {
-    if (!supabase) {
-      alert('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file.');
-      return;
-    }
-
     setIsSaving(true);
     setSaveStatus('saving');
-    
-    // Dispatch event for header to listen to
+
     window.dispatchEvent(new CustomEvent('editorForm:saveStatus', { detail: 'saving' }));
 
     try {
       const formData = getValues();
 
-      // Normalize blocks before saving to ensure Values Grid items always include title/text
       const normalizedBlocks = formData.content_blocks.map((block) => {
         if (block.type === 'values_grid') {
           return {
@@ -231,32 +211,31 @@ export default function EditorForm({
         }
         return block as any;
       });
-      
-      // Update config, brand_color, logo_url, and hero_background_url
-      const { error } = await supabase
-        .from('page_configs')
-        .update({
-          config: normalizedBlocks, // Save normalized content_blocks to config column
+
+      const response = await fetch(`/api/page-configs/${companyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config: normalizedBlocks,
           brand_color: formData.brand_color,
           logo_url: formData.logo_url || null,
           hero_background_url: formData.hero_background_url || null,
-        })
-        .eq('company_id', companyId);
+        }),
+      });
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Failed to save draft');
       }
 
-      // Success feedback
       setSaveStatus('saved');
       window.dispatchEvent(new CustomEvent('editorForm:saveStatus', { detail: 'saved' }));
-      
+
       setTimeout(() => {
         setSaveStatus('idle');
         window.dispatchEvent(new CustomEvent('editorForm:saveStatus', { detail: 'idle' }));
       }, 2000);
 
-      // Call optional onSave callback
       if (onSave) {
         onSave(formData);
       }
@@ -268,65 +247,29 @@ export default function EditorForm({
     } finally {
       setIsSaving(false);
     }
-  }, [getValues, supabase, companyId, onSave]);
+  }, [getValues, companyId, onSave, setSaveStatus]);
 
   const handlePublish = useCallback(async () => {
-    if (!supabase) {
-      alert('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file.');
-      return;
-    }
-
     setIsPublishing(true);
     setInternalPublishStatus('publishing');
-    
-    // Dispatch event for header to listen to
+
     window.dispatchEvent(new CustomEvent('editorForm:publishStatus', { detail: 'publishing' }));
 
     try {
-      // First, fetch the current config from the database to ensure we're publishing the saved draft
-      const { data: pageConfig, error: fetchError } = await supabase
-        .from('page_configs')
-        .select('config')
-        .eq('company_id', companyId)
-        .single();
+      const response = await fetch(`/api/page-configs/${companyId}/publish`, {
+        method: 'POST',
+      });
 
-      if (fetchError) {
-        throw fetchError;
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Failed to publish');
       }
 
-      // Get the current config (draft) from the database
-      let configToPublish = pageConfig?.config;
-      
-      // Parse config if it's a string, otherwise use directly
-      if (typeof configToPublish === 'string') {
-        try {
-          configToPublish = JSON.parse(configToPublish);
-        } catch (e) {
-          console.error('Error parsing config:', e);
-          configToPublish = [];
-        }
-      }
-      
-      // Copy config to published_config (SQL: UPDATE page_configs SET published_config = config, updated_at = NOW() WHERE company_id = ...)
-      const { error } = await supabase
-        .from('page_configs')
-        .update({
-          published_config: configToPublish,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('company_id', companyId);
-
-      if (error) {
-        throw error;
-      }
-
-      // Success feedback
       setInternalPublishStatus('published');
       window.dispatchEvent(new CustomEvent('editorForm:publishStatus', { detail: 'published' }));
-      
-      // Show success message
+
       alert('Site Published Successfully!');
-      
+
       setTimeout(() => {
         setInternalPublishStatus('idle');
         window.dispatchEvent(new CustomEvent('editorForm:publishStatus', { detail: 'idle' }));
@@ -339,7 +282,7 @@ export default function EditorForm({
     } finally {
       setIsPublishing(false);
     }
-  }, [supabase, companyId]);
+  }, [companyId]);
 
   // Expose handleSave and handlePublish to parent via window event or callback
   useEffect(() => {

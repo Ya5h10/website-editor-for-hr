@@ -2,7 +2,6 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
 
 export default function LoginPage() {
   const [slug, setSlug] = useState('');
@@ -11,54 +10,36 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  // Validate environment variables
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="glass-panel rounded-xl p-8 max-w-md w-full">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Configuration Error</h1>
-          <p className="text-gray-600">
-            Missing Supabase configuration. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
     try {
-      // Query Supabase for company with matching slug and password_code
-      const { data, error: queryError } = await supabase
-        .from('companies')
-        .select('id, slug')
-        .eq('slug', slug.trim().toLowerCase())
-        .eq('password_code', accessCode)
-        .single();
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: slug.trim().toLowerCase(),
+          accessCode,
+        }),
+      });
 
-      if (queryError || !data) {
-        setError('Invalid credentials');
+      const data = await response.json();
+
+      if (!response.ok || !data.company_id) {
+        setError(data.error || 'Invalid credentials');
         setIsLoading(false);
         return;
       }
 
-      // Save session to localStorage
       const sessionData = {
-        company_id: data.id,
-        company_slug: data.slug,
+        company_id: data.company_id,
+        company_slug: data.company_slug,
       };
       localStorage.setItem('orbit_session', JSON.stringify(sessionData));
 
-      // Redirect to editor
-      router.push(`/${data.slug}/edit`);
+      router.push(`/${data.company_slug}/edit`);
     } catch (err) {
       console.error('Login error:', err);
       setError('An error occurred. Please try again.');
@@ -132,4 +113,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

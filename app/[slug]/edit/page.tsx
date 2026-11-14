@@ -1,8 +1,6 @@
 import ProtectedEditPage from './ProtectedEditPage';
 import { Block } from '@/types/schema';
 
-export const runtime = 'edge';
-
 interface EditPageProps {
   params: Promise<{
     slug: string;
@@ -11,9 +9,8 @@ interface EditPageProps {
 
 export default async function EditPage({ params }: EditPageProps) {
   const { slug } = await params;
-  
-  // ProtectedEditPage will fetch the data from Supabase using the session
-  // Pass empty initial data - it will be populated by ProtectedEditPage
+
+  // ProtectedEditPage fetches draft config from Postgres via API using orbit_session
   const initialData = {
     brand_color: '#3b82f6',
     logo_url: '',
@@ -23,4 +20,3 @@ export default async function EditPage({ params }: EditPageProps) {
 
   return <ProtectedEditPage slug={slug} initialData={initialData} />;
 }
-

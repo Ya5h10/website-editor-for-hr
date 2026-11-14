@@ -10,9 +10,7 @@ export default function EditorPage() {
       onPreview={() => {
         window.open("/", "_blank");
       }}
-      onPublish={() => {
-        // Visual chrome — publish is a no-op in the Framer UI copy
-      }}
+      // No onPublish → toolbar Publish opens Code export (demo chrome)
       publishLabel="Publish"
     />
   );

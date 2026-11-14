@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "npx @cloudflare/next-on-pages",
+    "build:app": "next build",
     "vercel-build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -13,10 +14,9 @@
   "dependencies": {
     "@babel/standalone": "^8.1.2",
     "@hookform/resolvers": "^3.3.4",
-    "@supabase/ssr": "^0.5.2",
-    "@supabase/supabase-js": "^2.43.0",
     "lucide-react": "^0.344.0",
     "next": "15.5.2",
+    "pg": "^8.16.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.51.0",
@@ -27,6 +27,7 @@
     "@cloudflare/workers-types": "4.20250920.0",
     "@types/babel__standalone": "^7.1.9",
     "@types/node": "^20.14.10",
+    "@types/pg": "^8.15.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.19",

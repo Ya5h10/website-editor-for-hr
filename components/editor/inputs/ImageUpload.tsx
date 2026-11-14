@@ -2,7 +2,6 @@
 
 import { useState, useRef } from 'react';
 import { Upload, X, Loader2 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
 
 interface ImageUploadProps {
   label: string;
@@ -15,37 +14,11 @@ export default function ImageUpload({ label, value, onChange, error }: ImageUplo
   const [isUploading, setIsUploading] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Validate environment variables before creating Supabase client
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('Missing Supabase configuration. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file.');
-  }
-  
-  const supabase = supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
-
-  const sanitizeFilename = (filename: string): string => {
-    // Remove special characters and spaces, keep only alphanumeric, dots, hyphens, and underscores
-    return filename
-      .replace(/[^a-zA-Z0-9._-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-  };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!supabase) {
-      alert('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file.');
-      return;
-    }
-
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       alert('Please select an image file');
       return;
@@ -54,43 +27,29 @@ export default function ImageUpload({ label, value, onChange, error }: ImageUplo
     setIsUploading(true);
 
     try {
-      // Sanitize filename
-      const sanitizedFilename = sanitizeFilename(file.name);
-      
-      // Create unique path
-      const timestamp = Date.now();
-      const fileExtension = sanitizedFilename.split('.').pop() || 'jpg';
-      const path = `uploads/${timestamp}-${sanitizedFilename}`;
+      const formData = new FormData();
+      formData.append('file', file);
 
-      // Upload file to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('company-assets')
-        .upload(path, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+      const response = await fetch('/api/uploads', {
+        method: 'POST',
+        body: formData,
+      });
 
-      if (uploadError) {
-        throw uploadError;
+      const payload = await response.json();
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error || 'Failed to get public URL');
       }
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('company-assets')
-        .getPublicUrl(path);
-
-      if (!urlData?.publicUrl) {
-        throw new Error('Failed to get public URL');
-      }
-
-      // Update parent form
-      onChange(urlData.publicUrl);
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      onChange(payload.url);
+    } catch (uploadError) {
+      console.error('Upload error:', uploadError);
+      alert(
+        `Failed to upload image: ${
+          uploadError instanceof Error ? uploadError.message : 'Unknown error'
+        }`
+      );
     } finally {
       setIsUploading(false);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -166,7 +125,6 @@ export default function ImageUpload({ label, value, onChange, error }: ImageUplo
                 </button>
               </div>
             </div>
-            {/* Small X button in top-right corner */}
             <button
               type="button"
               onClick={handleRemove}

@@ -157,10 +157,42 @@ export function createElement(
     ...overrides,
   };
 
+  // Case defaults first; explicit override fields (props/x/y/id) always win so
+  // Postgres → canvas bridges can pass real Orbit content through createElement.
+  const withDefaults = (partial: Partial<CanvasElement>): CanvasElement => ({
+    ...base,
+    ...partial,
+    id: overrides.id ?? partial.id ?? base.id,
+    x: overrides.x ?? partial.x ?? base.x,
+    y: overrides.y ?? partial.y ?? base.y,
+    width: overrides.width ?? partial.width ?? base.width,
+    height: overrides.height ?? partial.height ?? base.height,
+    name: overrides.name ?? partial.name ?? base.name,
+    parentId:
+      overrides.parentId !== undefined
+        ? overrides.parentId
+        : partial.parentId !== undefined
+        ? partial.parentId
+        : base.parentId,
+    style: {
+      ...(partial.style || base.style),
+      ...(overrides.style || {}),
+    },
+    props: {
+      ...(partial.props || {}),
+      ...(overrides.props || {}),
+    },
+    tailwind: {
+      ...(partial.tailwind || base.tailwind || emptyTailwind()),
+      ...(overrides.tailwind || {}),
+    },
+    tailwindExtra:
+      overrides.tailwindExtra ?? partial.tailwindExtra ?? base.tailwindExtra,
+  });
+
   switch (kind) {
     case "custom":
-      return {
-        ...base,
+      return withDefaults({
         name: "Custom",
         width: 360,
         height: 220,
@@ -170,18 +202,16 @@ export function createElement(
           customCode: DEFAULT_CUSTOM_CODE,
           heading: "Custom block",
         },
-      };
+      });
     case "frame":
-      return {
-        ...base,
+      return withDefaults({
         width: 400,
         height: 240,
         style: defaultStyle({ fill: "#111111", radius: 12 }),
         props: { heading: "Frame" },
-      };
+      });
     case "text":
-      return {
-        ...base,
+      return withDefaults({
         width: 480,
         height: 80,
         style: defaultStyle({ fontSize: 32, fontWeight: 600 }),
@@ -189,26 +219,23 @@ export function createElement(
           text: "New text block",
           heading: "New text block",
         },
-      };
+      });
     case "image":
-      return {
-        ...base,
+      return withDefaults({
         width: 280,
         height: 320,
         style: defaultStyle({ fill: "#1f2937", radius: 12 }),
         props: { label: "Image", imageUrl: "" },
-      };
+      });
     case "stack":
-      return {
-        ...base,
+      return withDefaults({
         width: 360,
         height: 160,
         style: defaultStyle({ fill: "#151515", radius: 10, padding: 16 }),
         props: { heading: "Stack" },
-      };
+      });
     case "button":
-      return {
-        ...base,
+      return withDefaults({
         width: 180,
         height: 44,
         style: defaultStyle({
@@ -219,10 +246,9 @@ export function createElement(
           fontWeight: 600,
         }),
         props: { label: "Button" },
-      };
+      });
     case "hero":
-      return {
-        ...base,
+      return withDefaults({
         name: "Hero",
         width: 1040,
         height: 280,
@@ -235,10 +261,9 @@ export function createElement(
             "Haus partners with ambitious brands to craft digital experiences.",
           brandColor: "#0099ff",
         },
-      };
+      });
     case "feature_split":
-      return {
-        ...base,
+      return withDefaults({
         name: "Feature Split",
         width: 1040,
         height: 220,
@@ -249,10 +274,9 @@ export function createElement(
           content: "Describe the feature and supporting narrative here.",
           imageUrl: "",
         },
-      };
+      });
     case "values_grid":
-      return {
-        ...base,
+      return withDefaults({
         name: "Values Grid",
         width: 1040,
         height: 220,
@@ -265,10 +289,9 @@ export function createElement(
             { title: "Care", text: "People over pixels." },
           ],
         },
-      };
+      });
     case "features":
-      return {
-        ...base,
+      return withDefaults({
         name: "Features",
         width: 1040,
         height: 180,
@@ -290,7 +313,7 @@ export function createElement(
             },
           ],
         },
-      };
+      });
     default:
       return base;
   }

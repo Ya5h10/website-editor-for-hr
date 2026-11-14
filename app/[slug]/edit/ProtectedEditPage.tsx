@@ -1,14 +1,19 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
 import FramerEditorShell from '@/components/framer-editor/FramerEditorShell';
+import {
+  blocksToCanvasElements,
+  canvasElementsToBlocks,
+  extractBrandColor,
+} from '@/components/framer-editor/orbitBridge';
+import type { CanvasElement } from '@/components/framer-editor/types';
 import { Block } from '@/types/schema';
 
 interface ProtectedEditPageProps {
   slug: string;
-  initialData: { 
+  initialData: {
     brand_color?: string;
     logo_url?: string;
     config: Block[];
@@ -27,20 +32,13 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
     config: Block[];
   } | null>(null);
   const [publishStatus, setPublishStatus] = useState<'idle' | 'publishing' | 'published'>('idle');
-
-  const supabase = useMemo(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    return supabaseUrl && supabaseAnonKey
-      ? createClient(supabaseUrl, supabaseAnonKey)
-      : null;
-  }, []);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   useEffect(() => {
     const sessionData = localStorage.getItem('orbit_session');
-    
+
     if (!sessionData) {
-      // Fall through to Framer editor demo shell without company data
+      // Demo shell without company session
       setIsChecking(false);
       setIsLoading(false);
       setFormData({
@@ -54,7 +52,7 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
 
     try {
       const session = JSON.parse(sessionData);
-      
+
       if (session.company_slug !== slug) {
         router.push('/login');
         return;
@@ -76,24 +74,17 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
   }, [slug, router, initialData]);
 
   useEffect(() => {
-    if (!companyId || !supabase || isChecking) return;
+    if (!companyId || isChecking) return;
 
     let isMounted = true;
 
     const fetchPageConfig = async () => {
       try {
         setIsLoading(true);
-        const { data: pageConfig, error } = await supabase
-          .from('page_configs')
-          .select('config, brand_color, logo_url, hero_background_url')
-          .eq('company_id', companyId)
-          .single();
+        const response = await fetch(`/api/page-configs/${companyId}`);
+        const pageConfig = response.ok ? await response.json() : null;
 
         if (!isMounted) return;
-
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error fetching page config:', error);
-        }
 
         let contentBlocks: Block[] = [];
         if (pageConfig?.config) {
@@ -139,7 +130,13 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
     return () => {
       isMounted = false;
     };
-  }, [companyId, supabase, isChecking]);
+  }, [companyId, isChecking]);
+
+  const canvasElements = useMemo(() => {
+    if (!formData) return undefined;
+    if (!companyId) return undefined; // unauthenticated demo keeps HAUS defaults
+    return blocksToCanvasElements(formData.config, formData.brand_color);
+  }, [formData, companyId]);
 
   if (isChecking || isLoading) {
     return (
@@ -153,21 +150,73 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
     return null;
   }
 
+  const persistDraft = async (elements: CanvasElement[]) => {
+    if (!companyId) return;
+
+    const blocks = canvasElementsToBlocks(elements);
+    const brand_color = extractBrandColor(elements, formData.brand_color);
+
+    const response = await fetch(`/api/page-configs/${companyId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        config: blocks,
+        brand_color,
+        logo_url: formData.logo_url || null,
+        hero_background_url: formData.hero_background_url || null,
+      }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || 'Failed to save draft');
+    }
+
+    setFormData((prev) =>
+      prev
+        ? {
+            ...prev,
+            brand_color,
+            config: blocks,
+          }
+        : prev
+    );
+  };
+
   const handlePreview = () => {
     window.open(`/${slug}/careers?preview=true`, '_blank');
   };
 
-  const handlePublish = async () => {
-    setPublishStatus('publishing');
-    // Trigger existing editor publish handler if present
-    const publishHandler = (window as unknown as { __editorFormPublishHandler?: () => Promise<void> }).__editorFormPublishHandler;
+  const handleSaveDraft = async (elements: CanvasElement[]) => {
+    if (!companyId) return;
+    setSaveStatus('saving');
     try {
-      if (publishHandler) {
-        await publishHandler();
+      await persistDraft(elements);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 1500);
+    } catch (error) {
+      console.error('Save draft error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to save draft');
+      setSaveStatus('idle');
+    }
+  };
+
+  const handlePublish = async (elements: CanvasElement[]) => {
+    if (!companyId) return;
+    setPublishStatus('publishing');
+    try {
+      await persistDraft(elements);
+      const response = await fetch(`/api/page-configs/${companyId}/publish`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error('Publish failed');
       }
       setPublishStatus('published');
       setTimeout(() => setPublishStatus('idle'), 1500);
-    } catch {
+    } catch (error) {
+      console.error('Publish error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to publish');
       setPublishStatus('idle');
     }
   };
@@ -179,14 +228,22 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
       ? 'Published'
       : 'Publish';
 
+  const saveLabel =
+    saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : 'Save';
+
   return (
     <FramerEditorShell
+      key={companyId ? `${companyId}-${formData.config.length}` : 'demo'}
       projectName={slug || 'Site'}
       branchName="main"
+      initialElements={canvasElements}
       onPreview={handlePreview}
-      onPublish={handlePublish}
+      onSaveDraft={companyId ? handleSaveDraft : undefined}
+      onPublish={companyId ? handlePublish : undefined}
       publishLabel={publishLabel}
-      publishDisabled={publishStatus === 'publishing'}
+      publishDisabled={publishStatus === 'publishing' || saveStatus === 'saving'}
+      saveLabel={saveLabel}
+      saveDisabled={saveStatus === 'saving' || publishStatus === 'publishing'}
     />
   );
 }
