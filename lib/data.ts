@@ -103,7 +103,7 @@ export async function updatePageConfigDraft(
     hero_background_url: string | null;
   }
 ) {
-  await query(
+  const result = await query(
     `UPDATE page_configs
      SET config = $2::jsonb,
          brand_color = $3,
@@ -119,6 +119,27 @@ export async function updatePageConfigDraft(
       data.hero_background_url,
     ]
   );
+
+  // If the company has no page_configs row yet, create one (avoids silent no-op saves).
+  if (result.rowCount === 0) {
+    await query(
+      `INSERT INTO page_configs (company_id, brand_color, logo_url, hero_background_url, config, published_config)
+       VALUES ($1, $2, $3, $4, $5::jsonb, '[]'::jsonb)
+       ON CONFLICT (company_id) DO UPDATE SET
+         config = EXCLUDED.config,
+         brand_color = EXCLUDED.brand_color,
+         logo_url = EXCLUDED.logo_url,
+         hero_background_url = EXCLUDED.hero_background_url,
+         updated_at = NOW()`,
+      [
+        companyId,
+        data.brand_color,
+        data.logo_url,
+        data.hero_background_url,
+        JSON.stringify(data.config),
+      ]
+    );
+  }
 }
 
 export async function publishPageConfig(companyId: string) {

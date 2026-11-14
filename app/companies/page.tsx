@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { ArrowRight, Building2 } from 'lucide-react';
 import { listCompaniesWithLogos } from '@/lib/data';
+import CompanyLogo from '@/components/companies/CompanyLogo';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,23 +55,7 @@ export default async function CompaniesPage() {
                 className="glass-panel rounded-xl p-6 hover:bg-white/80 hover:shadow-md transition-all group"
               >
                 <div className="flex flex-col items-center text-center space-y-4">
-                  {company.logo_url ? (
-                    <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-white border border-gray-200">
-                      <Image
-                        src={company.logo_url}
-                        alt={company.name}
-                        fill
-                        unoptimized={company.logo_url.startsWith('/')}
-                        className="object-contain p-2"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-24 h-24 rounded-lg bg-gray-100 flex items-center justify-center border border-gray-200">
-                      <span className="text-2xl font-bold text-gray-400">
-                        {company.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
+                  <CompanyLogo name={company.name} logoUrl={company.logo_url} />
 
                   <h3 className="text-lg font-semibold text-gray-900 group-hover:text-gray-700 transition-colors">
                     {company.name}

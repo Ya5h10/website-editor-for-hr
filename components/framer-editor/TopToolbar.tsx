@@ -24,9 +24,12 @@ interface TopToolbarProps {
   mode: EditorMode;
   onModeChange: (mode: EditorMode) => void;
   onPreview?: () => void;
+  onSaveDraft?: () => void;
   onPublish?: () => void;
   publishLabel?: string;
   publishDisabled?: boolean;
+  saveLabel?: string;
+  saveDisabled?: boolean;
   onInsert: (kind: InsertKind) => void;
   onUndo?: () => void;
   onRedo?: () => void;
@@ -38,9 +41,12 @@ export default function TopToolbar({
   mode,
   onModeChange,
   onPreview,
+  onSaveDraft,
   onPublish,
   publishLabel = "Publish",
   publishDisabled = false,
+  saveLabel = "Save",
+  saveDisabled = false,
   onInsert,
   onUndo,
   onRedo,
@@ -222,6 +228,18 @@ export default function TopToolbar({
         >
           Export React
         </button>
+
+        {onSaveDraft ? (
+          <button
+            className="framer-btn-outline h-7 px-3 disabled:opacity-50"
+            type="button"
+            onClick={onSaveDraft}
+            disabled={saveDisabled}
+            title="Save careers page draft to Postgres"
+          >
+            {saveLabel}
+          </button>
+        ) : null}
 
         <button
           className="framer-btn-primary h-7 px-3 font-semibold disabled:opacity-50"

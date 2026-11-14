@@ -21,27 +21,43 @@ import {
 interface FramerEditorShellProps {
   projectName?: string;
   branchName?: string;
+  /** When set (e.g. from Postgres page_configs), replaces the demo HAUS canvas. */
+  initialElements?: CanvasElement[];
   onPreview?: () => void;
-  onPublish?: () => void;
+  /** Persist Orbit blocks as draft. Receives current canvas elements. */
+  onSaveDraft?: (elements: CanvasElement[]) => void | Promise<void>;
+  /** Publish live careers page. Receives current canvas elements. */
+  onPublish?: (elements: CanvasElement[]) => void | Promise<void>;
   publishLabel?: string;
   publishDisabled?: boolean;
+  saveLabel?: string;
+  saveDisabled?: boolean;
 }
 
 export default function FramerEditorShell({
   projectName = "Site",
   branchName = "main",
+  initialElements,
   onPreview,
+  onSaveDraft,
   onPublish,
   publishLabel,
   publishDisabled,
+  saveLabel,
+  saveDisabled,
 }: FramerEditorShellProps) {
   const [mode, setMode] = useState<EditorMode>("canvas");
   const [exportScope, setExportScope] = useState<"page" | "element">("page");
   const [selectedPageId, setSelectedPageId] = useState("home");
   const [elements, setElements] = useState<CanvasElement[]>(() =>
-    createInitialElements()
+    initialElements !== undefined ? initialElements : createInitialElements()
   );
-  const [selectedId, setSelectedId] = useState<string | null>("headline");
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    if (initialElements !== undefined) {
+      return initialElements[0]?.id ?? null;
+    }
+    return "headline";
+  });
   const [past, setPast] = useState<CanvasElement[][]>([]);
   const [future, setFuture] = useState<CanvasElement[][]>([]);
 
@@ -165,12 +181,25 @@ export default function FramerEditorShell({
           else setMode(next);
         }}
         onPreview={onPreview}
-        onPublish={() => {
-          openCodeExport("page");
-          onPublish?.();
-        }}
+        onSaveDraft={
+          onSaveDraft
+            ? () => {
+                void onSaveDraft(elements);
+              }
+            : undefined
+        }
+        onPublish={
+          onPublish
+            ? () => {
+                // Real publish persists to Postgres — do not hijack into Code export.
+                void onPublish(elements);
+              }
+            : () => openCodeExport("page")
+        }
         publishLabel={publishLabel}
         publishDisabled={publishDisabled}
+        saveLabel={saveLabel}
+        saveDisabled={saveDisabled}
         onInsert={(kind) => handleInsert(kind)}
         onUndo={handleUndo}
         onRedo={handleRedo}
