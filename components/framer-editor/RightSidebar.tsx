@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import AgentPanel from "./AgentPanel";
 import StylePanel from "./StylePanel";
-import { CanvasElement, ElementStyle } from "./types";
+import { CanvasElement, ElementStyle, TailwindClassMap } from "./types";
 
 type RightTab = "agent" | "style";
 
@@ -15,6 +15,8 @@ interface RightSidebarProps {
   onChangeProps?: (patch: CanvasElement["props"]) => void;
   onChangeName?: (name: string) => void;
   onChangeSize?: (size: { width?: number; height?: number }) => void;
+  onChangeTailwind?: (patch: TailwindClassMap) => void;
+  onChangeTailwindExtra?: (extra: string) => void;
   onExportElement?: () => void;
 }
 
@@ -26,6 +28,8 @@ export default function RightSidebar({
   onChangeProps,
   onChangeName,
   onChangeSize,
+  onChangeTailwind,
+  onChangeTailwindExtra,
   onExportElement,
 }: RightSidebarProps) {
   const [tab, setTab] = useState<RightTab>(defaultTab);
@@ -69,6 +73,8 @@ export default function RightSidebar({
             onChangeProps={onChangeProps}
             onChangeName={onChangeName}
             onChangeSize={onChangeSize}
+            onChangeTailwind={onChangeTailwind}
+            onChangeTailwindExtra={onChangeTailwindExtra}
             onExportElement={onExportElement}
           />
         )}

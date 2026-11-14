@@ -4,6 +4,10 @@ import { useRef, useState } from "react";
 import FloatingToolbar from "./FloatingToolbar";
 import { CanvasElement, InsertKind } from "./types";
 import { IconDesktop, IconPlay, IconPlus } from "./icons";
+import {
+  buildTailwindClassName,
+  twOverridesInline,
+} from "./tailwindStyles";
 
 interface CanvasProps {
   elements: CanvasElement[];
@@ -171,24 +175,30 @@ function CanvasNode({
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: () => void;
 }) {
+  const twClass = buildTailwindClassName(el.tailwind, el.tailwindExtra);
+  const skip = twOverridesInline(el.tailwind);
+
   return (
     <div
       className={`absolute ${selected ? "framer-selection z-20" : "z-10"} ${
         el.locked ? "cursor-default" : "cursor-move"
-      }`}
+      } ${twClass}`}
       style={{
         left: el.x,
         top: el.y,
         width: el.width,
         height: el.height,
-        opacity: el.style.opacity / 100,
-        borderRadius: el.style.radius,
-        background:
-          el.style.fill === "transparent" ? "transparent" : el.style.fill,
-        color: el.style.color,
-        fontSize: el.style.fontSize,
-        fontWeight: el.style.fontWeight,
-        padding: el.style.padding,
+        opacity: skip.skipOpacity ? undefined : el.style.opacity / 100,
+        borderRadius: skip.skipRadius ? undefined : el.style.radius,
+        background: skip.skipFill
+          ? undefined
+          : el.style.fill === "transparent"
+          ? "transparent"
+          : el.style.fill,
+        color: skip.skipColor ? undefined : el.style.color,
+        fontSize: skip.skipFontSize ? undefined : el.style.fontSize,
+        fontWeight: skip.skipFontWeight ? undefined : el.style.fontWeight,
+        padding: skip.skipPadding ? undefined : el.style.padding,
         userSelect: "none",
         touchAction: "none",
       }}

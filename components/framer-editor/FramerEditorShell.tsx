@@ -12,6 +12,7 @@ import {
   EditorMode,
   ElementStyle,
   InsertKind,
+  TailwindClassMap,
   createElement,
   createInitialElements,
 } from "./types";
@@ -198,6 +199,31 @@ export default function FramerEditorShell({
             onChangeSize={(size) => {
               if (!selectedId) return;
               updateElement(selectedId, size);
+            }}
+            onChangeTailwind={(patch: TailwindClassMap) => {
+              if (!selectedId) return;
+              commit((prev) =>
+                prev.map((el) =>
+                  el.id === selectedId
+                    ? {
+                        ...el,
+                        tailwind: {
+                          ...(el.tailwind || {}),
+                          ...Object.fromEntries(
+                            Object.entries(patch).map(([k, v]) => [
+                              k,
+                              v || undefined,
+                            ])
+                          ),
+                        },
+                      }
+                    : el
+                )
+              );
+            }}
+            onChangeTailwindExtra={(extra) => {
+              if (!selectedId) return;
+              updateElement(selectedId, { tailwindExtra: extra });
             }}
             onExportElement={() => openCodeExport("element")}
           />

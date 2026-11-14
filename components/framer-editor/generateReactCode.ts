@@ -1,4 +1,11 @@
 import { CanvasElement } from "./types";
+import { buildTailwindClassName } from "./tailwindStyles";
+
+function classNameJsx(el: CanvasElement): string {
+  const tw = buildTailwindClassName(el.tailwind, el.tailwindExtra);
+  if (!tw) return "{className}";
+  return `{[${escapeStr(tw)}, className].filter(Boolean).join(" ")}`;
+}
 
 export type ExportScope = "page" | "element";
 
@@ -122,7 +129,7 @@ export function ${name}({
   return (
     <button
       type="button"
-      className={className}
+      className=${classNameJsx(el)}
       onClick={onClick}
       style={${styleObjectLiteral([
         ["display", "inline-flex"],
@@ -167,7 +174,7 @@ export function ${name}({
 }: ${propsType}) {
   return (
     <figure
-      className={className}
+      className=${classNameJsx(el)}
       style={${styleObjectLiteral([
         ["position", "relative"],
         ["width", "100%"],
@@ -240,7 +247,7 @@ export function ${name}({
 }: ${propsType}) {
   return (
     <section
-      className={className}
+      className=${classNameJsx(el)}
       aria-labelledby="${name}-heading"
       style={${styleObjectLiteral([
         ["width", "100%"],
@@ -349,7 +356,7 @@ export function ${name}({
 
   return (
     <section
-      className={className}
+      className=${classNameJsx(el)}
       style={${styleObjectLiteral([
         ["display", "grid"],
         ["gridTemplateColumns", "minmax(0, 1fr) minmax(0, 1fr)"],
@@ -396,7 +403,7 @@ export function ${name}({
 }: ${propsType}) {
   return (
     <section
-      className={className}
+      className=${classNameJsx(el)}
       aria-labelledby="${name}-heading"
       style={${styleObjectLiteral([
         ["width", "100%"],
@@ -463,7 +470,7 @@ export function ${name}({
 }: ${propsType}) {
   return (
     <section
-      className={className}
+      className=${classNameJsx(el)}
       aria-label="Capabilities"
       style={${styleObjectLiteral([
         ["display", "grid"],
@@ -525,7 +532,7 @@ export function ${name}({
 }: ${propsType}) {
   return (
     <${Tag}
-      className={className}
+      className=${classNameJsx(el)}
       style={${styleObjectLiteral([
         ["margin", 0],
         ["maxWidth", px(el.width)],
@@ -568,7 +575,7 @@ export function ${name}({
 }: ${propsType}) {
   return (
     <header
-      className={className}
+      className=${classNameJsx(el)}
       style={${styleObjectLiteral([
         ["position", "sticky"],
         ["top", 0],
@@ -645,7 +652,7 @@ export function ${name}({
 }: ${propsType}) {
   return (
     <div
-      className={className}
+      className=${classNameJsx(el)}
       role="list"
       aria-label="Selected work"
       style={${styleObjectLiteral([
@@ -704,7 +711,7 @@ export function ${name}({
 }: ${propsType}) {
   return (
     <div
-      className={className}
+      className=${classNameJsx(el)}
       style={${styleObjectLiteral([
         ["width", "100%"],
         ["maxWidth", px(el.width)],

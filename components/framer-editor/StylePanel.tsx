@@ -1,7 +1,10 @@
 "use client";
 
-import { CanvasElement, ElementStyle } from "./types";
+import { useState } from "react";
+import { CanvasElement, ElementStyle, TailwindClassMap } from "./types";
 import { IconChevronDown } from "./icons";
+import TailwindDesignPanel from "./TailwindDesignPanel";
+import { countTailwindClasses } from "./tailwindStyles";
 
 interface StylePanelProps {
   element?: CanvasElement | null;
@@ -9,8 +12,12 @@ interface StylePanelProps {
   onChangeProps?: (patch: CanvasElement["props"]) => void;
   onChangeName?: (name: string) => void;
   onChangeSize?: (size: { width?: number; height?: number }) => void;
+  onChangeTailwind?: (patch: TailwindClassMap) => void;
+  onChangeTailwindExtra?: (extra: string) => void;
   onExportElement?: () => void;
 }
+
+type StyleTab = "design" | "tailwind";
 
 export default function StylePanel({
   element,
@@ -18,8 +25,12 @@ export default function StylePanel({
   onChangeProps,
   onChangeName,
   onChangeSize,
+  onChangeTailwind,
+  onChangeTailwindExtra,
   onExportElement,
 }: StylePanelProps) {
+  const [styleTab, setStyleTab] = useState<StyleTab>("tailwind");
+
   if (!element) {
     return (
       <div className="h-full flex items-center justify-center px-6 text-center text-[12.5px] text-[#666]">
@@ -30,10 +41,11 @@ export default function StylePanel({
 
   const s = element.style;
   const p = element.props;
+  const twCount = countTailwindClasses(element.tailwind, element.tailwindExtra);
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto framer-scrollbar">
-      <div className="px-3 py-3 border-b border-[#222]">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="px-3 py-3 border-b border-[#222] shrink-0">
         <div className="text-[11px] uppercase tracking-wide text-[#666] mb-1">
           Selection
         </div>
@@ -45,7 +57,54 @@ export default function StylePanel({
         <div className="text-[12px] text-[#666] mt-1 capitalize">
           {element.type.replace("_", " ")} · Desktop
         </div>
+        <div className="mt-2.5 flex h-7 p-0.5 rounded-md bg-[#151515] border border-[#222]">
+          <button
+            type="button"
+            className={`flex-1 rounded text-[11.5px] ${
+              styleTab === "design"
+                ? "bg-[#2a2a2a] text-white"
+                : "text-[#777] hover:text-white"
+            }`}
+            onClick={() => setStyleTab("design")}
+          >
+            Design
+          </button>
+          <button
+            type="button"
+            className={`flex-1 rounded text-[11.5px] ${
+              styleTab === "tailwind"
+                ? "bg-[#2a2a2a] text-white"
+                : "text-[#777] hover:text-white"
+            }`}
+            onClick={() => setStyleTab("tailwind")}
+          >
+            Tailwind{twCount ? ` · ${twCount}` : ""}
+          </button>
+        </div>
       </div>
+
+      {styleTab === "tailwind" ? (
+        <div className="flex-1 min-h-0 flex flex-col">
+          <TailwindDesignPanel
+            tailwind={element.tailwind}
+            tailwindExtra={element.tailwindExtra}
+            onChangeTailwind={onChangeTailwind}
+            onChangeExtra={onChangeTailwindExtra}
+          />
+          {onExportElement ? (
+            <div className="px-3 py-3 border-t border-[#222] shrink-0">
+              <button
+                type="button"
+                className="framer-btn-outline w-full h-8 text-[12.5px]"
+                onClick={onExportElement}
+              >
+                Export this element as React
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+      <div className="flex-1 overflow-y-auto framer-scrollbar min-h-0">
 
       {/* Orbit / content forms */}
       <Section title="Content">
@@ -310,6 +369,8 @@ export default function StylePanel({
           </p>
         </div>
       ) : null}
+      </div>
+      )}
     </div>
   );
 }

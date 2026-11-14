@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import { getAllTailwindClassNames } from "./components/framer-editor/tailwindCatalog";
 
 const config: Config = {
   content: [
@@ -6,6 +7,8 @@ const config: Config = {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  // Ensure every catalog utility is available when applied dynamically on the canvas.
+  safelist: getAllTailwindClassNames(),
   theme: {
     extend: {
       colors: {

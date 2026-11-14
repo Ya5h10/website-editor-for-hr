@@ -1,3 +1,7 @@
+import { TailwindClassMap, emptyTailwind } from "./tailwindStyles";
+
+export type { TailwindClassMap };
+
 export type EditorMode = "canvas" | "cms" | "code";
 
 export type InsertKind =
@@ -36,6 +40,10 @@ export interface CanvasElement {
   locked?: boolean;
   visible?: boolean;
   style: ElementStyle;
+  /** Structured Tailwind utility picks (one class per property). */
+  tailwind?: TailwindClassMap;
+  /** Freeform extra Tailwind / custom classes. */
+  tailwindExtra?: string;
   /** Orbit / content props */
   props: {
     heading?: string;
@@ -86,6 +94,8 @@ export function createElement(
     visible: true,
     locked: false,
     style: defaultStyle(),
+    tailwind: emptyTailwind(),
+    tailwindExtra: "",
     props: {},
     ...overrides,
   };
