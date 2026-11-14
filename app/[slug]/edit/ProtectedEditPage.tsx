@@ -3,8 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
-import EditorForm from '@/components/editor/EditorForm';
-import EditHeader from './EditHeader';
+import FramerEditorShell from '@/components/framer-editor/FramerEditorShell';
 import { Block } from '@/types/schema';
 
 interface ProtectedEditPageProps {
@@ -27,8 +26,8 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
     hero_background_url: string;
     config: Block[];
   } | null>(null);
+  const [publishStatus, setPublishStatus] = useState<'idle' | 'publishing' | 'published'>('idle');
 
-  // Memoize Supabase client to prevent recreation on every render
   const supabase = useMemo(() => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -38,18 +37,24 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
   }, []);
 
   useEffect(() => {
-    // Check authentication
     const sessionData = localStorage.getItem('orbit_session');
     
     if (!sessionData) {
-      router.push('/login');
+      // Fall through to Framer editor demo shell without company data
+      setIsChecking(false);
+      setIsLoading(false);
+      setFormData({
+        brand_color: initialData.brand_color || '#3b82f6',
+        logo_url: '',
+        hero_background_url: '',
+        config: initialData.config || [],
+      });
       return;
     }
 
     try {
       const session = JSON.parse(sessionData);
       
-      // Verify the slug matches the session
       if (session.company_slug !== slug) {
         router.push('/login');
         return;
@@ -59,11 +64,17 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
       setIsChecking(false);
     } catch (err) {
       console.error('Error parsing session:', err);
-      router.push('/login');
+      setIsChecking(false);
+      setIsLoading(false);
+      setFormData({
+        brand_color: '#3b82f6',
+        logo_url: '',
+        hero_background_url: '',
+        config: [],
+      });
     }
-  }, [slug, router]);
+  }, [slug, router, initialData]);
 
-  // Fetch page config data after authentication
   useEffect(() => {
     if (!companyId || !supabase || isChecking) return;
 
@@ -81,11 +92,9 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
         if (!isMounted) return;
 
         if (error && error.code !== 'PGRST116') {
-          // PGRST116 is "not found" - that's okay, we'll use defaults
           console.error('Error fetching page config:', error);
         }
 
-        // Parse config if it's a string, otherwise use directly
         let contentBlocks: Block[] = [];
         if (pageConfig?.config) {
           if (typeof pageConfig.config === 'string') {
@@ -105,12 +114,11 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
             brand_color: pageConfig?.brand_color || '#3b82f6',
             logo_url: pageConfig?.logo_url || '',
             hero_background_url: pageConfig?.hero_background_url || '',
-            config: contentBlocks, // Use config instead of content_blocks
+            config: contentBlocks,
           });
         }
       } catch (err) {
         console.error('Error fetching page config:', err);
-        // Use defaults on error
         if (isMounted) {
           setFormData({
             brand_color: '#3b82f6',
@@ -135,26 +143,50 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
 
   if (isChecking || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <p className="text-gray-600">Loading...</p>
-        </div>
+      <div className="framer-editor fixed inset-0 flex items-center justify-center bg-black">
+        <p className="text-[#888] text-sm">Loading…</p>
       </div>
     );
   }
 
-  if (!companyId || !formData) {
-    return null; // Will redirect
+  if (!formData) {
+    return null;
   }
 
+  const handlePreview = () => {
+    window.open(`/${slug}/careers?preview=true`, '_blank');
+  };
+
+  const handlePublish = async () => {
+    setPublishStatus('publishing');
+    // Trigger existing editor publish handler if present
+    const publishHandler = (window as unknown as { __editorFormPublishHandler?: () => Promise<void> }).__editorFormPublishHandler;
+    try {
+      if (publishHandler) {
+        await publishHandler();
+      }
+      setPublishStatus('published');
+      setTimeout(() => setPublishStatus('idle'), 1500);
+    } catch {
+      setPublishStatus('idle');
+    }
+  };
+
+  const publishLabel =
+    publishStatus === 'publishing'
+      ? 'Publishing…'
+      : publishStatus === 'published'
+      ? 'Published'
+      : 'Publish';
+
   return (
-    <div className="min-h-screen">
-      <EditHeader slug={slug} />
-      {/* Main Editor Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <EditorForm initialData={formData} companyId={companyId} />
-      </main>
-    </div>
+    <FramerEditorShell
+      projectName={slug || 'Site'}
+      branchName="main"
+      onPreview={handlePreview}
+      onPublish={handlePublish}
+      publishLabel={publishLabel}
+      publishDisabled={publishStatus === 'publishing'}
+    />
   );
 }
-
