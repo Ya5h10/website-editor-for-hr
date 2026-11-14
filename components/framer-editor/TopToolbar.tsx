@@ -217,7 +217,7 @@ export default function TopToolbar({
         <button
           className="framer-btn-outline h-7 px-2.5"
           type="button"
-          title="Export React JSX from the canvas"
+          title="Export React TypeScript for the page or a selected layer"
           onClick={() => onModeChange("code")}
         >
           Export React

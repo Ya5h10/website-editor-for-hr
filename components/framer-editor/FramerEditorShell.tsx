@@ -34,6 +34,7 @@ export default function FramerEditorShell({
   publishDisabled,
 }: FramerEditorShellProps) {
   const [mode, setMode] = useState<EditorMode>("canvas");
+  const [exportScope, setExportScope] = useState<"page" | "element">("page");
   const [selectedPageId, setSelectedPageId] = useState("home");
   const [elements, setElements] = useState<CanvasElement[]>(() =>
     createInitialElements()
@@ -41,6 +42,11 @@ export default function FramerEditorShell({
   const [selectedId, setSelectedId] = useState<string | null>("headline");
   const [past, setPast] = useState<CanvasElement[][]>([]);
   const [future, setFuture] = useState<CanvasElement[][]>([]);
+
+  const openCodeExport = useCallback((scope: "page" | "element" = "page") => {
+    setExportScope(scope);
+    setMode("code");
+  }, []);
 
   const selected = useMemo(
     () => elements.find((e) => e.id === selectedId) || null,
@@ -117,11 +123,13 @@ export default function FramerEditorShell({
         projectName={projectName}
         branchName={branchName}
         mode={mode}
-        onModeChange={setMode}
+        onModeChange={(next) => {
+          if (next === "code") openCodeExport("page");
+          else setMode(next);
+        }}
         onPreview={onPreview}
         onPublish={() => {
-          // Prefer exporting React from the canvas; fall through to host publish if provided.
-          setMode("code");
+          openCodeExport("page");
           onPublish?.();
         }}
         publishLabel={publishLabel}
@@ -137,6 +145,9 @@ export default function FramerEditorShell({
         <CodeExportPanel
           elements={elements}
           pageName={selectedPageId === "home" ? "Home" : selectedPageId}
+          selectedId={selectedId}
+          initialScope={exportScope}
+          onSelectElement={setSelectedId}
           onBackToCanvas={() => setMode("canvas")}
         />
       ) : (
@@ -188,6 +199,7 @@ export default function FramerEditorShell({
               if (!selectedId) return;
               updateElement(selectedId, size);
             }}
+            onExportElement={() => openCodeExport("element")}
           />
         </div>
       )}

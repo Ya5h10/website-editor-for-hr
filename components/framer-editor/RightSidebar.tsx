@@ -15,6 +15,7 @@ interface RightSidebarProps {
   onChangeProps?: (patch: CanvasElement["props"]) => void;
   onChangeName?: (name: string) => void;
   onChangeSize?: (size: { width?: number; height?: number }) => void;
+  onExportElement?: () => void;
 }
 
 export default function RightSidebar({
@@ -25,6 +26,7 @@ export default function RightSidebar({
   onChangeProps,
   onChangeName,
   onChangeSize,
+  onExportElement,
 }: RightSidebarProps) {
   const [tab, setTab] = useState<RightTab>(defaultTab);
 
@@ -67,6 +69,7 @@ export default function RightSidebar({
             onChangeProps={onChangeProps}
             onChangeName={onChangeName}
             onChangeSize={onChangeSize}
+            onExportElement={onExportElement}
           />
         )}
       </div>

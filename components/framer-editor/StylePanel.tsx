@@ -9,6 +9,7 @@ interface StylePanelProps {
   onChangeProps?: (patch: CanvasElement["props"]) => void;
   onChangeName?: (name: string) => void;
   onChangeSize?: (size: { width?: number; height?: number }) => void;
+  onExportElement?: () => void;
 }
 
 export default function StylePanel({
@@ -17,6 +18,7 @@ export default function StylePanel({
   onChangeProps,
   onChangeName,
   onChangeSize,
+  onExportElement,
 }: StylePanelProps) {
   if (!element) {
     return (
@@ -292,6 +294,22 @@ export default function StylePanel({
           />
         </Row>
       </Section>
+
+      {onExportElement ? (
+        <div className="px-3 py-3">
+          <button
+            type="button"
+            className="framer-btn-outline w-full h-8 text-[12.5px]"
+            onClick={onExportElement}
+          >
+            Export this element as React
+          </button>
+          <p className="mt-2 text-[11px] text-[#666] leading-relaxed">
+            Generates a typed .tsx component with props you can drop into any
+            React app.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
