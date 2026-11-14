@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Trash2, Plus } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
 import { Job } from '@/types/schema';
 
 interface JobsManagerProps {
@@ -38,34 +37,15 @@ export default function JobsManager({ companyId }: JobsManagerProps) {
     description: '',
   });
 
-  // Validate environment variables
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return (
-      <div className="glass-panel rounded-lg p-6">
-        <p className="text-gray-600">Supabase configuration missing.</p>
-      </div>
-    );
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
   const fetchJobs = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .eq('company_id', companyId)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching jobs:', error);
+      const response = await fetch(`/api/jobs?companyId=${encodeURIComponent(companyId)}`);
+      if (!response.ok) {
+        console.error('Error fetching jobs:', await response.text());
         return;
       }
-
+      const data = await response.json();
       setJobs(data || []);
     } catch (err) {
       console.error('Error fetching jobs:', err);
@@ -95,26 +75,26 @@ export default function JobsManager({ companyId }: JobsManagerProps) {
     setIsAdding(true);
 
     try {
-      const { error } = await supabase
-        .from('jobs')
-        .insert([
-          {
-            company_id: companyId,
-            title: formData.title,
-            location: formData.location,
-            work_policy: formData.work_policy,
-            department: formData.department,
-            employment_type: formData.employment_type,
-            experience_level: formData.experience_level,
-            job_type: formData.job_type,
-            salary_range: formData.salary_range || null,
-            job_slug: formData.job_slug || generateSlug(formData.title),
-            description: formData.description || null,
-          },
-        ]);
+      const response = await fetch('/api/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company_id: companyId,
+          title: formData.title,
+          location: formData.location,
+          work_policy: formData.work_policy,
+          department: formData.department,
+          employment_type: formData.employment_type,
+          experience_level: formData.experience_level,
+          job_type: formData.job_type,
+          salary_range: formData.salary_range || null,
+          job_slug: formData.job_slug || generateSlug(formData.title),
+          description: formData.description || null,
+        }),
+      });
 
-      if (error) {
-        console.error('Error adding job:', error);
+      if (!response.ok) {
+        console.error('Error adding job:', await response.text());
         alert('Failed to add job. Please try again.');
         return;
       }
@@ -148,13 +128,10 @@ export default function JobsManager({ companyId }: JobsManagerProps) {
     }
 
     try {
-      const { error } = await supabase
-        .from('jobs')
-        .delete()
-        .eq('id', jobId);
+      const response = await fetch(`/api/jobs/${jobId}`, { method: 'DELETE' });
 
-      if (error) {
-        console.error('Error deleting job:', error);
+      if (!response.ok) {
+        console.error('Error deleting job:', await response.text());
         alert('Failed to delete job. Please try again.');
         return;
       }

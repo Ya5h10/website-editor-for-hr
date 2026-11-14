@@ -2,26 +2,97 @@
 
 Orbit is a mini‑SaaS for building branded careers pages. Recruiters can log in, design their public hiring page with reusable content blocks, and manage open roles. Jobseekers can browse a directory of companies and view each company’s live careers page.
 
-Built with **Next.js App Router**, **TypeScript**, **Tailwind CSS**, **Supabase** (Postgres + Storage), **react-hook-form**, and **zod**.
+Built with **Next.js App Router**, **TypeScript**, **Tailwind CSS**, **PostgreSQL** (`pg`), **react-hook-form**, and **zod**. The full stack runs with Docker Compose.
 
 ---
 
-## Getting Started
+## Quick start (Docker)
 
-### 1. Install dependencies
+```bash
+docker compose up --build
+```
 
-npm install### 2. Configure environment variables
+Then open [http://localhost:3000](http://localhost:3000).
 
-Create `.env.local`:
+Compose runs `db` (Postgres 16) and `app` (Next.js standalone). The app uses `network_mode: service:db` so it reaches Postgres on `127.0.0.1` inside the shared network namespace (ports `3000` and `5432` are published on the `db` service).
 
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key### 3. Run the dev server
+**Seed login**
 
-npm run devOpen `http://localhost:3000`.
+| Field | Value |
+| --- | --- |
+| Company slug | `orbit` |
+| Access code | `demo123` |
+
+Schema + seed data load automatically from `db/init.sql` the first time the Postgres volume is created.
 
 ---
 
-## Core Flows
+## Environment variables
+
+Copy `.env.example` for local (non-Docker) runs:
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `DATABASE_URL` | yes | Postgres connection string, e.g. `postgresql://orbit:orbit@localhost:5432/orbit` |
+| `UPLOAD_DIR` | no | Filesystem directory for uploaded images (default `./public/uploads`; Docker uses `/app/uploads`) |
+| `DATABASE_SSL` | no | Set to `true` if Postgres requires SSL |
+
+There are **no Supabase** env vars.
+
+Compose sets `DATABASE_URL` and `UPLOAD_DIR` for the `app` service automatically.
+
+---
+
+## Local development (without Docker app)
+
+1. Start Postgres (for example via Compose DB only):
+
+   ```bash
+   docker compose up -d db
+   ```
+
+2. Install and run:
+
+   ```bash
+   cp .env.example .env.local
+   npm install
+   npm run dev
+   ```
+
+Open `http://localhost:3000`.
+
+Production-style Node build (what Docker uses):
+
+```bash
+npm run build:app
+npm start
+```
+
+> `npm run build` / `pages:build` still invoke the Cloudflare Pages adapter for the existing Pages deploy path. Docker uses `build:app` (`next build` + standalone output).
+
+---
+
+## Storage
+
+Image uploads no longer use Supabase Storage. Files are written to a local directory:
+
+- API: `POST /api/uploads` (multipart form field `file`)
+- Public URL: `/uploads/<filename>` (served by `app/uploads/[...path]/route.ts`)
+- Docker volume: `uploads_data` → `/app/uploads`
+
+---
+
+## Auth / session
+
+Recruiter login still uses **company slug + access code** (`password_code` on `companies`).
+
+- `POST /api/auth/login` validates against Postgres
+- Client stores `orbit_session` in `localStorage` (`company_id`, `company_slug`)
+- `/[slug]/edit` checks that the session slug matches the URL
+
+---
+
+## Core flows
 
 ### Landing Page (`/`)
 
@@ -30,85 +101,46 @@ npm run devOpen `http://localhost:3000`.
 
 ### Company Directory (`/companies`)
 
-- Server component
-- Lists all companies with logo and name
-- Each card links to `/${slug}`
+- Server component reads companies + logos from Postgres
 
-### Recruiter Login (`/login`)
+### Public Page (`/[slug]/careers`)
 
-- Login via company slug + access code (`password_code` on `companies`)
-- Stores `orbit_session` in `localStorage`
-- Redirects to `/${slug}/edit`
+- Loads company, draft/published `page_configs`, and `jobs` from Postgres
+- `?preview=true` shows draft `config`; otherwise `published_config`
 
-### Editor (`/[slug]/edit`)
+### Editor
 
-- Protected client page:
-  - Validates `orbit_session` against URL slug
-  - Fetches `page_configs` for the company:
-    - `config` (array of blocks)
-    - `brand_color`
-    - `logo_url`
-    - `hero_background_url`
-- Renders:
-  - `EditHeader` (Preview + Save Draft)
-  - `EditorForm` (page builder + jobs manager)
-
-#### Blocks in `EditorForm`
-
-Stored in `page_configs.config` as an array of polymorphic blocks:
-
-- `hero`
-- `feature_split`
-- `values_grid` (uses `items[].title`, `items[].text`, `items[].image_url`)
-- `features` (uses `features[].title`, `features[].description`)
-
-`EditorForm` uses `react-hook-form` + `zod` (`components/editor/schema.ts`) and normalizes `values_grid` items before saving so all three fields are always present.
-
-#### Jobs
-
-- `JobsManager` manages rows in the `jobs` table (title, location, work_policy, salary_range, etc.).
-- Shown under the “Jobs” tab in the editor.
-
-### Public Page (`/[slug]`)
-
-- Server component:
-  - Loads company by slug
-  - Fetches `page_configs` + `jobs`
-- Renders:
-  - `PageHeader` – global hero using `brand_color`, `logo_url`, `hero_background_url`
-  - `PageRenderer` – maps `config` blocks to UI
-  - Jobs section with filters (search, location, salary)
+- Framer-style shell at `/editor` and `/[slug]/edit`
+- Classic block editor helpers (`EditorForm`, `JobsManager`, `ImageUpload`) talk to `/api/*` against Postgres
 
 ---
 
-## Project Structure (high level)
+## Project structure (high level)
 
-- `app/`
-  - `page.tsx` – landing page
-  - `companies/page.tsx` – company directory
-  - `login/page.tsx` – recruiter login
-  - `[slug]/(public)/page.tsx` – public careers page
-  - `[slug]/edit/`
-    - `page.tsx` – edit shell
-    - `ProtectedEditPage.tsx` – auth + data fetch
-    - `EditHeader.tsx` – top bar with Save/Preview
-- `components/builder/`
-  - `PageHeader.tsx`
-  - `PageRenderer.tsx`
-  - `blocks/` – `HeroBlock`, `FeatureSplitBlock`, `ValuesBlock`, `FeaturesBlock`
-- `components/editor/`
-  - `EditorForm.tsx`
-  - `schema.ts`
-  - `blocks/` – `HeroEditor`, `FeatureEditor`, `ValuesEditor`, `FeaturesEditor`
-  - `inputs/` – `TextInput`, `ImageUpload`
-  - `JobsManager.tsx`
-- `types/schema.ts` – shared TS types for blocks, `PageConfig`, `Company`, `Job`
+- `app/` – App Router pages + `app/api/*` JSON routes
+- `lib/db.ts` – `pg` pool
+- `lib/data.ts` – SQL helpers (companies, page configs, jobs)
+- `lib/uploads.ts` – local filesystem uploads
+- `db/init.sql` – schema + seed
+- `Dockerfile` / `docker-compose.yml` – app + Postgres
+- `components/builder/` – public page renderer
+- `components/editor/` – form/jobs/upload helpers
+- `components/framer-editor/` – Framer UI copy shell
 
 ---
 
 ## Scripts
 
-- `npm run dev` – start dev server
-- `npm run build` – production build
-- `npm run start` – run production server
-- `npm run lint` – lint the project
+| Script | Purpose |
+| --- | --- |
+| `npm run dev` | Next.js dev server |
+| `npm run build:app` | `next build` (standalone, Docker) |
+| `npm start` | Run production Next server |
+| `npm run lint` | ESLint |
+| `npm run build` / `pages:build` | Cloudflare Pages adapter build |
+
+---
+
+## Database schema
+
+See `db/init.sql` and `tech_spec.md`. Tables: `companies`, `page_configs`, `jobs`.

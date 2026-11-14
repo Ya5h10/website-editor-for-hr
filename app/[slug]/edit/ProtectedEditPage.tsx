@@ -1,14 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
 import FramerEditorShell from '@/components/framer-editor/FramerEditorShell';
 import { Block } from '@/types/schema';
 
 interface ProtectedEditPageProps {
   slug: string;
-  initialData: { 
+  initialData: {
     brand_color?: string;
     logo_url?: string;
     config: Block[];
@@ -28,17 +27,9 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
   } | null>(null);
   const [publishStatus, setPublishStatus] = useState<'idle' | 'publishing' | 'published'>('idle');
 
-  const supabase = useMemo(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    return supabaseUrl && supabaseAnonKey
-      ? createClient(supabaseUrl, supabaseAnonKey)
-      : null;
-  }, []);
-
   useEffect(() => {
     const sessionData = localStorage.getItem('orbit_session');
-    
+
     if (!sessionData) {
       // Fall through to Framer editor demo shell without company data
       setIsChecking(false);
@@ -54,7 +45,7 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
 
     try {
       const session = JSON.parse(sessionData);
-      
+
       if (session.company_slug !== slug) {
         router.push('/login');
         return;
@@ -76,24 +67,17 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
   }, [slug, router, initialData]);
 
   useEffect(() => {
-    if (!companyId || !supabase || isChecking) return;
+    if (!companyId || isChecking) return;
 
     let isMounted = true;
 
     const fetchPageConfig = async () => {
       try {
         setIsLoading(true);
-        const { data: pageConfig, error } = await supabase
-          .from('page_configs')
-          .select('config, brand_color, logo_url, hero_background_url')
-          .eq('company_id', companyId)
-          .single();
+        const response = await fetch(`/api/page-configs/${companyId}`);
+        const pageConfig = response.ok ? await response.json() : null;
 
         if (!isMounted) return;
-
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error fetching page config:', error);
-        }
 
         let contentBlocks: Block[] = [];
         if (pageConfig?.config) {
@@ -139,7 +123,7 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
     return () => {
       isMounted = false;
     };
-  }, [companyId, supabase, isChecking]);
+  }, [companyId, isChecking]);
 
   if (isChecking || isLoading) {
     return (
@@ -159,11 +143,19 @@ export default function ProtectedEditPage({ slug, initialData }: ProtectedEditPa
 
   const handlePublish = async () => {
     setPublishStatus('publishing');
-    // Trigger existing editor publish handler if present
-    const publishHandler = (window as unknown as { __editorFormPublishHandler?: () => Promise<void> }).__editorFormPublishHandler;
+    const publishHandler = (
+      window as unknown as { __editorFormPublishHandler?: () => Promise<void> }
+    ).__editorFormPublishHandler;
     try {
       if (publishHandler) {
         await publishHandler();
+      } else if (companyId) {
+        const response = await fetch(`/api/page-configs/${companyId}/publish`, {
+          method: 'POST',
+        });
+        if (!response.ok) {
+          throw new Error('Publish failed');
+        }
       }
       setPublishStatus('published');
       setTimeout(() => setPublishStatus('idle'), 1500);

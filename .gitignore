@@ -26,6 +26,12 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env
+
+# uploaded images (Docker volume / local UPLOAD_DIR)
+/uploads
+/public/uploads
+!/public/uploads/.gitkeep
 
 # vercel
 .vercel

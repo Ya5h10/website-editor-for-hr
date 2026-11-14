@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: orbit
+      POSTGRES_PASSWORD: orbit
+      POSTGRES_DB: orbit
+    # App shares this network namespace (see app.network_mode), so publish app + db ports here.
+    ports:
+      - "5432:5432"
+      - "3000:3000"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orbit -d orbit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # Share the db container network so Node can reach Postgres on 127.0.0.1.
+    # This avoids Docker bridge container-to-container filtering issues in some hosts
+    # while remaining a single `docker compose up` stack.
+    network_mode: "service:db"
+    environment:
+      DATABASE_URL: postgresql://orbit:orbit@127.0.0.1:5432/orbit
+      UPLOAD_DIR: /app/uploads
+      NODE_ENV: production
+    volumes:
+      # Local filesystem image storage (replaces Supabase Storage)
+      - uploads_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  uploads_data:
